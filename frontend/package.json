@@ -1,0 +1,9 @@
+{
+  "name": "caracal-setup-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Static Wails frontend shell for Caracal Setup",
+  "scripts": {
+    "build": "node scripts/ensure-dist.js"
+  }
+}

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Caracal Setup
+GenericName=First Launch Setup Wizard
+Comment=Run the initial Caracal OS setup wizard
+Exec=caracal-setup
+TryExec=caracal-setup
+Icon=caracal-setup
+Terminal=false
+StartupNotify=true
+Categories=System;Settings;
+Keywords=caracal;setup;wizard;first-run;
