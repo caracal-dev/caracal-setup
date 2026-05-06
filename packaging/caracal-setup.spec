@@ -1,13 +1,16 @@
 %global debug_package %{nil}
 %global upstream_version %{?version_override}%{!?version_override:0.1.0}
+%global github_owner %{?github_owner_override}%{!?github_owner_override:caracal-os}
+%global github_repo %{?github_repo_override}%{!?github_repo_override:caracal-setup}
 %global source_tag %{?source_tag_override}%{!?source_tag_override:v%{upstream_version}}
+%global source_dir_name %{github_repo}-%{upstream_version}
 
 Name:           caracal-setup
 Version:        %{upstream_version}
 Release:        %{?release_override}%{!?release_override:1}%{?dist}
 Summary:        First-launch setup wizard for Caracal OS
 License:        MIT
-URL:            https://github.com/caracal-os/caracal-setup
+URL:            https://github.com/%{github_owner}/%{github_repo}
 Source0:        %{url}/archive/refs/tags/%{source_tag}.tar.gz#/%{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
@@ -23,15 +26,15 @@ It can optionally update the current username and password, launch the
 mandatory ujust first-run flow, and finish with a reboot action.
 
 %prep
-%autosetup -n %{name}-%{version}
+%autosetup -n %{source_dir_name}
 
 %build
 mkdir -p build
-export GOFLAGS="-buildmode=pie -trimpath -mod=mod"
+export GOFLAGS="-buildmode=pie -trimpath -mod=vendor"
 go build -tags="desktop,production,webkit2_41" -ldflags="-s -w" -o build/caracal-setup .
 
 %check
-export GOFLAGS="-mod=mod"
+export GOFLAGS="-mod=vendor"
 go test ./...
 
 %install
@@ -49,9 +52,15 @@ install -pm0644 assets/images/caracal.png %{buildroot}%{_datadir}/pixmaps/caraca
 install -Dpm0644 packaging/caracal-setup.desktop %{buildroot}%{_datadir}/applications/caracal-setup.desktop
 
 %files
+%license LICENSE
+%doc README.md
 %{_bindir}/caracal-setup
 %{_prefix}/lib/caracal-setup/scripts/*
 %{_datadir}/caracal-setup/logo.txt
 %{_datadir}/caracal-setup/assets/images/*
 %{_datadir}/pixmaps/caracal-setup.png
 %{_datadir}/applications/caracal-setup.desktop
+
+%changelog
+* Wed May 06 2026 Atumia <atumia@users.noreply.github.com> - %{version}-%{release}
+- Build caracal-setup as a packaged Wails RPM

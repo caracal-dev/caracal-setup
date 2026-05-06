@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install release dependencies
+        run: |
+          set -euo pipefail
+          dnf -y install \
+            gcc \
+            git \
+            glib2-devel \
+            golang \
+            gtk3-devel \
+            pkgconf-pkg-config \
+            tar \
+            webkit2gtk4.1-devel
+          dnf clean all
+
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+
+          latest_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          if [[ -n "${latest_tag}" ]]; then
+            echo "LATEST_TAG=${latest_tag}" >> "${GITHUB_ENV}"
+          fi
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" && "${GITHUB_REF_NAME:-}" == v* ]]; then
+            version="${GITHUB_REF_NAME}"
+          elif [[ -n "${latest_tag}" ]]; then
+            version="${latest_tag}"
+          else
+            version="manual"
+          fi
+
+          echo "RELEASE_VERSION=${version}" >> "${GITHUB_ENV}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Vendor Go modules
+        run: go mod vendor
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build release package
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          APP_NAME="caracal-setup"
+          STAGING_DIR="dist/${APP_NAME}-${VERSION}-linux-amd64"
+          ARCHIVE_PATH="dist/${APP_NAME}-${VERSION}-linux-amd64.tar.gz"
+
+          rm -rf dist
+          install -d \
+            "${STAGING_DIR}/usr/bin" \
+            "${STAGING_DIR}/usr/lib/caracal-setup" \
+            "${STAGING_DIR}/usr/share/caracal-setup" \
+            "${STAGING_DIR}/usr/share/applications" \
+            "${STAGING_DIR}/usr/share/pixmaps"
+
+          go build -trimpath -mod=vendor -tags="desktop,production,webkit2_41" -ldflags="-s -w" \
+            -o "${STAGING_DIR}/usr/bin/${APP_NAME}" .
+
+          cp -R scripts "${STAGING_DIR}/usr/lib/caracal-setup/"
+          cp -R assets "${STAGING_DIR}/usr/share/caracal-setup/"
+          cp packaging/caracal-setup.desktop "${STAGING_DIR}/usr/share/applications/"
+          cp assets/images/caracal.png "${STAGING_DIR}/usr/share/pixmaps/caracal-setup.png"
+          cp logo.txt "${STAGING_DIR}/usr/share/caracal-setup/"
+          cp README.md LICENSE "${STAGING_DIR}/"
+
+          tar -C dist -czf "${ARCHIVE_PATH}" "$(basename "${STAGING_DIR}")"
+          sha256sum "${ARCHIVE_PATH}" > "${ARCHIVE_PATH}.sha256"
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+          generate_release_notes: true
