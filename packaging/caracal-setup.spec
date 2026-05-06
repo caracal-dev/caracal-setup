@@ -1,4 +1,5 @@
 %global debug_package %{nil}
+%undefine _disable_source_fetch
 %global upstream_version %{?version_override}%{!?version_override:0.1.0}
 %global github_owner %{?github_owner_override}%{!?github_owner_override:caracal-os}
 %global github_repo %{?github_repo_override}%{!?github_repo_override:caracal-setup}
