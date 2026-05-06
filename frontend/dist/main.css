@@ -1,18 +1,14 @@
 :root {
   --bg: #181616;
-  --panel: rgba(31, 30, 28, 0.92);
-  --panel-strong: rgba(24, 24, 37, 0.92);
-  --panel-border: rgba(138, 164, 176, 0.22);
+  --panel: rgba(31, 30, 28, 0.9);
+  --panel-border: rgba(138, 164, 176, 0.2);
   --text: #dcd7ba;
   --muted: #9cabca;
-  --subtle: #7e9cd8;
-  --accent: #8ea4a2;
   --accent-warm: #f6c177;
   --success: #a6da95;
   --danger: #e46876;
   --info: #7fb4ca;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-  --radius-xl: 28px;
   --radius-lg: 22px;
   --radius-md: 16px;
   --radius-sm: 12px;
@@ -27,8 +23,8 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(126, 156, 216, 0.14), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(246, 193, 119, 0.12), transparent 30%),
+    radial-gradient(circle at top left, rgba(126, 156, 216, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(246, 193, 119, 0.12), transparent 26%),
     linear-gradient(160deg, #11111b 0%, #181616 46%, #1f1f28 100%);
   color: var(--text);
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
@@ -43,41 +39,38 @@ input {
   font: inherit;
 }
 
+code {
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.95em;
+}
+
 .app-shell {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
   min-height: 100vh;
+  padding: 40px 20px;
 }
 
-.sidebar {
-  padding: 28px 22px;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  background:
-    linear-gradient(180deg, rgba(24, 22, 22, 0.96), rgba(17, 17, 27, 0.94)),
-    url("/assets/images/caracal-banner-dark.png") center/cover;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow: auto;
+.setup-card {
+  width: min(880px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
 }
 
-.brand-card,
-.sidebar-block,
-.hero,
-.panel,
-.finish-panel {
+.brand-row,
+.hero-panel,
+.panel {
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
 }
 
-.brand-card {
+.brand-row {
   display: flex;
-  gap: 14px;
   align-items: center;
-  padding: 18px;
-  border-radius: var(--radius-lg);
-  background: rgba(24, 24, 37, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: var(--shadow);
+  gap: 14px;
 }
 
 .brand-mark {
@@ -86,10 +79,7 @@ input {
   object-fit: contain;
 }
 
-.eyebrow,
-.block-title,
-.panel-eyebrow,
-.progress-label {
+.eyebrow {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -97,163 +87,89 @@ input {
   color: var(--accent-warm);
 }
 
-.brand-card h1,
-.hero h2,
-.panel h3,
-.finish-panel h3,
-.progress-card h4,
-.choice-card strong {
-  margin: 0;
+.brand-row h1,
+.hero-panel h2,
+.panel h3 {
+  margin: 4px 0 0;
   font-family: "IBM Plex Serif", "Georgia", serif;
   font-weight: 600;
 }
 
-.sidebar-block {
-  margin-top: 20px;
-  padding: 18px;
-  border-radius: var(--radius-lg);
-  background: rgba(24, 22, 22, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.step-list {
+.page-panel {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
-.step-item {
+.hero-panel {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 12px;
-  padding: 14px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid transparent;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 20px;
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(31, 31, 40, 0.94), rgba(24, 24, 37, 0.86)),
+    url("/assets/images/caracal-banner-light.png") center/cover;
 }
 
-.step-item.is-active,
-.step-item.is-complete {
-  border-color: rgba(126, 156, 216, 0.32);
-  background: rgba(126, 156, 216, 0.1);
+.hero-panel h2 {
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  line-height: 1.08;
 }
 
-.step-item.is-error {
-  border-color: rgba(228, 104, 118, 0.4);
-  background: rgba(228, 104, 118, 0.1);
-}
-
-.step-item h3,
-.step-item p,
-.identity-card p,
-.hero-copy p,
-.choice-card p,
+.hero-copy,
 .panel-note,
 .progress-copy,
 .log-output,
-#finish-summary {
+.current-user,
+#current-home {
   margin: 0;
-}
-
-.step-item p,
-.identity-value,
-.hero-copy p:last-child,
-.choice-card p,
-.panel-note,
-.progress-copy,
-.log-output,
-#finish-summary {
   color: var(--muted);
   line-height: 1.6;
 }
 
-.step-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text);
-}
-
-.identity-label {
-  font-size: 1.05rem;
-  color: var(--text);
-}
-
-.identity-value {
-  margin-top: 6px;
-  font-size: 0.92rem;
-}
-
-.main-panel {
-  padding: 28px;
-  overflow: auto;
-}
-
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.8fr);
-  gap: 20px;
-  padding: 28px;
-  border-radius: var(--radius-xl);
-  background:
-    linear-gradient(135deg, rgba(31, 31, 40, 0.94), rgba(24, 24, 37, 0.86)),
-    url("/assets/images/caracal-banner-light.png") center/cover;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: var(--shadow);
-}
-
-.hero h2 {
-  margin-top: 8px;
-  font-size: clamp(1.9rem, 3vw, 3.2rem);
-  line-height: 1.08;
-  max-width: 15ch;
-}
-
-.hero-mark-pane {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
-  min-height: 190px;
-  padding: 20px;
-  border-radius: var(--radius-lg);
-  background: rgba(17, 17, 27, 0.58);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
 .hero-mark {
-  width: min(220px, 100%);
-  max-height: 120px;
+  width: 100%;
+  max-height: 110px;
   object-fit: contain;
   filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.28));
 }
 
-.hero-mark-caption {
-  margin: 0;
+.hero-status {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.step-strip {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.step-chip {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 0.74rem;
+  font-size: 0.88rem;
 }
 
-.wizard-layout {
+.step-chip.is-active,
+.step-chip.is-complete {
+  color: var(--text);
+  border-color: rgba(126, 156, 216, 0.32);
+  background: rgba(126, 156, 216, 0.12);
+}
+
+.step-chip.is-error {
+  color: var(--danger);
+  border-color: rgba(228, 104, 118, 0.4);
+  background: rgba(228, 104, 118, 0.12);
+}
+
+.panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.panel,
-.finish-panel {
-  padding: 22px;
-  border-radius: var(--radius-lg);
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow);
+  gap: 16px;
 }
 
 .panel-header {
@@ -266,7 +182,6 @@ input {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   min-height: 34px;
   padding: 0 12px;
   border-radius: 999px;
@@ -296,47 +211,40 @@ input {
   background: rgba(228, 104, 118, 0.12);
 }
 
-.choice-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 18px;
+.current-user {
+  font-size: 0.95rem;
 }
 
-.choice-card {
-  padding: 18px;
-  border-radius: var(--radius-md);
+#current-home {
+  display: inline-block;
+  margin-left: 6px;
+}
+
+.choice-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.choice-pill {
+  padding: 12px 16px;
+  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(17, 17, 27, 0.34);
-  color: inherit;
-  text-align: left;
+  background: rgba(17, 17, 27, 0.4);
+  color: var(--text);
   cursor: pointer;
   transition: 140ms ease;
 }
 
-.choice-card:hover,
-.choice-card.is-active {
-  transform: translateY(-2px);
+.choice-pill:hover,
+.choice-pill.is-active {
   border-color: rgba(126, 156, 216, 0.34);
   background: rgba(126, 156, 216, 0.12);
-}
-
-.choice-token {
-  display: inline-flex;
-  margin-bottom: 14px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(246, 193, 119, 0.12);
-  color: var(--accent-warm);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.74rem;
 }
 
 .account-form {
   display: grid;
   gap: 14px;
-  margin-top: 18px;
 }
 
 .field {
@@ -370,79 +278,61 @@ input {
   cursor: not-allowed;
 }
 
-.panel-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  margin-top: 18px;
-}
-
-.primary-button,
-.ghost-button {
-  min-height: 46px;
-  padding: 0 20px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: 140ms ease;
-}
-
-.primary-button {
-  background: linear-gradient(135deg, rgba(142, 164, 162, 0.98), rgba(246, 193, 119, 0.94));
-  color: #11111b;
-  font-weight: 600;
-}
-
-.primary-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.primary-button:disabled,
-.ghost-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.progress-stack {
+.progress-list {
   display: grid;
-  gap: 14px;
-  margin-top: 18px;
+  gap: 10px;
 }
 
-.progress-card {
-  padding: 16px;
+.progress-item {
+  padding: 14px 16px;
   border-radius: var(--radius-md);
   background: rgba(17, 17, 27, 0.34);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.progress-card.is-running {
+.progress-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.progress-item.is-running {
   border-color: rgba(127, 180, 202, 0.36);
   background: rgba(127, 180, 202, 0.1);
 }
 
-.progress-card.is-complete {
+.progress-item.is-complete,
+.progress-item.is-ready {
   border-color: rgba(166, 218, 149, 0.32);
   background: rgba(166, 218, 149, 0.09);
 }
 
-.progress-card.is-ready {
-  border-color: rgba(246, 193, 119, 0.28);
-}
-
-.progress-card.is-error {
+.progress-item.is-error {
   border-color: rgba(228, 104, 118, 0.34);
   background: rgba(228, 104, 118, 0.1);
 }
 
-.log-block {
-  margin-top: 18px;
+.action-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.primary-button {
+  min-height: 46px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: linear-gradient(135deg, rgba(142, 164, 162, 0.98), rgba(246, 193, 119, 0.94));
+  color: #11111b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .log-output {
-  margin-top: 14px;
   min-height: 220px;
   max-height: 340px;
   overflow: auto;
@@ -451,60 +341,26 @@ input {
   background: rgba(17, 17, 27, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.06);
   font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   white-space: pre-wrap;
-}
-
-.finish-panel {
-  margin-top: 20px;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: center;
-}
-
-.finish-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 .is-hidden {
   display: none !important;
 }
 
-@media (max-width: 1120px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    position: static;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-layout,
-  .hero {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 720px) {
-  .main-panel,
-  .sidebar {
-    padding: 20px;
+  .app-shell {
+    padding: 20px 14px;
   }
 
-  .choice-grid {
+  .hero-panel {
     grid-template-columns: 1fr;
   }
 
-  .panel-actions,
-  .finish-panel {
-    flex-direction: column;
-    align-items: stretch;
+  .hero-status,
+  .action-row {
+    justify-content: stretch;
   }
 
   .primary-button {

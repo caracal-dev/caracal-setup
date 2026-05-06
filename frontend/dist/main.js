@@ -1,6 +1,7 @@
 const state = {
   profile: null,
   changeAccount: false,
+  currentPage: "account",
   running: false,
   completed: false,
   phases: {
@@ -11,8 +12,13 @@ const state = {
 };
 
 const elements = {
-  stepItems: [...document.querySelectorAll(".step-item")],
-  progressCards: [...document.querySelectorAll(".progress-card")],
+  stepItems: [...document.querySelectorAll(".step-chip")],
+  progressCards: [...document.querySelectorAll(".progress-item")],
+  pages: {
+    account: document.querySelector("#page-account"),
+    "first-run": document.querySelector("#page-first-run"),
+    finish: document.querySelector("#page-finish"),
+  },
   currentUsername: document.querySelector("#current-username"),
   currentHome: document.querySelector("#current-home"),
   skipChoice: document.querySelector("#skip-choice"),
@@ -23,10 +29,8 @@ const elements = {
   accountHint: document.querySelector("#account-hint"),
   nextButton: document.querySelector("#next-button"),
   rebootButton: document.querySelector("#reboot-button"),
-  finishPanel: document.querySelector("#finish-panel"),
   finishSummary: document.querySelector("#finish-summary"),
   log: document.querySelector("#log"),
-  accountPill: document.querySelector("#account-pill"),
   runPill: document.querySelector("#run-pill"),
 };
 
@@ -68,6 +72,7 @@ function bindEvents() {
       return;
     }
 
+    state.currentPage = "first-run";
     state.running = true;
     state.completed = false;
     state.phases["first-run"] = {
@@ -86,12 +91,15 @@ function bindEvents() {
       const result = await backend().RunSetup(request);
       state.running = false;
       state.completed = true;
-      elements.finishPanel.classList.remove("is-hidden");
+      state.currentPage = "finish";
       elements.finishSummary.textContent = `First-run setup completed for ${result.appliedUsername}. Reboot now to finish applying the Caracal session changes.`;
       appendLog("Mandatory setup finished. Reboot is ready.");
       render();
     } catch (error) {
       state.running = false;
+      if (state.phases.account.state === "error" && state.phases["first-run"].state !== "complete") {
+        state.currentPage = "account";
+      }
       appendLog(error?.message || String(error));
       render();
     }
@@ -142,8 +150,8 @@ async function loadProfile() {
   const profile = await backend().GetProfile();
   state.profile = profile;
   elements.currentUsername.textContent = profile.currentUsername || "Unknown user";
-  elements.currentHome.textContent = profile.currentHome || "";
   elements.usernameInput.value = profile.currentUsername || "";
+  elements.currentHome.textContent = profile.currentHome ? `• ${profile.currentHome}` : "";
 }
 
 function buildRequest() {
@@ -199,15 +207,14 @@ function render() {
   elements.nextButton.textContent = state.running ? "Running Setup..." : "Next";
   elements.rebootButton.disabled = state.running;
 
-  updatePill(elements.accountPill, state.phases.account.state);
   updatePill(elements.runPill, state.running ? "running" : state.completed ? "success" : "neutral");
   elements.runPill.textContent = state.running ? "Running" : state.completed ? "Complete" : "Idle";
 
-  const activeStep = state.completed
-    ? "finish"
-    : state.running || state.phases["first-run"].state === "running"
-      ? "first-run"
-      : "account";
+  const activeStep = state.currentPage;
+
+  for (const [key, page] of Object.entries(elements.pages)) {
+    page.classList.toggle("is-hidden", key !== state.currentPage);
+  }
 
   for (const item of elements.stepItems) {
     const key = item.dataset.step;
@@ -228,10 +235,6 @@ function render() {
     if (copy && phase.message) {
       copy.textContent = phase.message;
     }
-  }
-
-  if (state.completed) {
-    elements.finishPanel.classList.remove("is-hidden");
   }
 }
 

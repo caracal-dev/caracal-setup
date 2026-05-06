@@ -7,9 +7,9 @@
     <link rel="stylesheet" href="/main.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="brand-card">
+    <main class="app-shell">
+      <section class="setup-card">
+        <div class="brand-row">
           <img class="brand-mark" src="/assets/images/caracal.png" alt="Caracal logo" />
           <div>
             <p class="eyebrow">Caracal OS</p>
@@ -17,78 +17,37 @@
           </div>
         </div>
 
-        <section class="sidebar-block">
-          <p class="block-title">Wizard Steps</p>
-          <div class="step-list">
-            <div class="step-item is-active" data-step="account">
-              <span class="step-index">01</span>
-              <div>
-                <h3>Account Details</h3>
-                <p>Choose whether to update the username and password before first-run setup.</p>
-              </div>
-            </div>
-            <div class="step-item" data-step="first-run">
-              <span class="step-index">02</span>
-              <div>
-                <h3>Mandatory Setup</h3>
-                <p>Runs `ujust first-run` in a terminal window with the existing Caracal flow.</p>
-              </div>
-            </div>
-            <div class="step-item" data-step="finish">
-              <span class="step-index">03</span>
-              <div>
-                <h3>Reboot</h3>
-                <p>Finish setup by rebooting so group membership and session changes take effect.</p>
-              </div>
-            </div>
-          </div>
+        <section class="step-strip" aria-label="Setup progress">
+          <div class="step-chip is-active" data-step="account">1. Account</div>
+          <div class="step-chip" data-step="first-run">2. First Run</div>
+          <div class="step-chip" data-step="finish">3. Reboot</div>
         </section>
 
-        <section class="sidebar-block">
-          <p class="block-title">Current User</p>
-          <div class="identity-card">
-            <p id="current-username" class="identity-label">Loading...</p>
-            <p id="current-home" class="identity-value"></p>
-          </div>
-        </section>
-      </aside>
-
-      <main class="main-panel">
-        <section class="hero">
-          <div class="hero-copy">
-            <p class="eyebrow">Welcome to Caracal OS</p>
-            <h2>Finish your first-run setup with the same Caracal look and flow.</h2>
-            <p>
-              This wizard can optionally set a new username and password, then launch the mandatory
-              `ujust first-run` step before asking you to reboot.
-            </p>
-          </div>
-          <div class="hero-mark-pane" aria-hidden="true">
+        <section id="page-account" class="page-panel">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Step 1</p>
+              <h2>Choose your account details.</h2>
+              <p class="hero-copy">
+                Keep the current account or set a new username and password before the mandatory setup runs.
+              </p>
+            </div>
             <img class="hero-mark" src="/assets/images/caracal-splash.svg" alt="" />
-            <p class="hero-mark-caption">Caracal Setup Wizard</p>
-          </div>
-        </section>
+          </section>
 
-        <section class="wizard-layout">
           <section class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="panel-eyebrow">Step 1</p>
-                <h3>Account Details</h3>
-              </div>
-              <span id="account-pill" class="status-badge neutral">Ready</span>
-            </div>
+            <p class="current-user">
+              Current user:
+              <strong id="current-username">Loading...</strong>
+              <span id="current-home"></span>
+            </p>
 
-            <div class="choice-grid" role="radiogroup" aria-label="Change account details">
-              <button id="skip-choice" class="choice-card is-active" type="button" aria-pressed="true">
-                <span class="choice-token">Skip</span>
-                <strong>Keep current account</strong>
-                <p>Use the existing username and password, then continue into the mandatory setup.</p>
+            <div class="choice-row" role="radiogroup" aria-label="Change account details">
+              <button id="skip-choice" class="choice-pill is-active" type="button" aria-pressed="true">
+                Keep current account
               </button>
-              <button id="change-choice" class="choice-card" type="button" aria-pressed="false">
-                <span class="choice-token">Edit</span>
-                <strong>Set a new username and password</strong>
-                <p>Rename the account, set a fresh password, and then launch `ujust first-run`.</p>
+              <button id="change-choice" class="choice-pill" type="button" aria-pressed="false">
+                Set a new username and password
               </button>
             </div>
 
@@ -107,73 +66,81 @@
               </label>
             </form>
 
-            <div class="panel-actions">
-              <p id="account-hint" class="panel-note">Skipping this step keeps the current account details.</p>
+            <p id="account-hint" class="panel-note">Skipping this step keeps the current account details.</p>
+
+            <div class="action-row">
               <button id="next-button" class="primary-button" type="button">Next</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="page-first-run" class="page-panel is-hidden">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Step 2</p>
+              <h2>Mandatory first-run setup.</h2>
+              <p class="hero-copy">
+                The wizard is now running <code>ujust first-run</code>. A terminal window opens for the existing Caracal setup flow.
+              </p>
+            </div>
+            <div class="hero-status">
+              <span id="run-pill" class="status-badge neutral">Idle</span>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="progress-list">
+              <div class="progress-item" data-progress="account">
+                <strong>Account</strong>
+                <p class="progress-copy">Optional account changes.</p>
+              </div>
+              <div class="progress-item" data-progress="first-run">
+                <strong>Mandatory first-run</strong>
+                <p class="progress-copy">Runs <code>ujust first-run</code> in a terminal window.</p>
+              </div>
+              <div class="progress-item" data-progress="finish">
+                <strong>Reboot</strong>
+                <p class="progress-copy">Reboot when setup completes.</p>
+              </div>
             </div>
           </section>
 
           <section class="panel">
             <div class="panel-header">
               <div>
-                <p class="panel-eyebrow">Progress</p>
-                <h3>Setup Status</h3>
+                <p class="eyebrow">Log</p>
+                <h3>Activity</h3>
               </div>
-              <span id="run-pill" class="status-badge neutral">Idle</span>
             </div>
-
-            <div class="progress-stack">
-              <article class="progress-card" data-progress="account">
-                <div>
-                  <p class="progress-label">Account Details</p>
-                  <h4>Optional username and password update</h4>
-                </div>
-                <p class="progress-copy">This step is skipped unless you choose to change the account.</p>
-              </article>
-
-              <article class="progress-card" data-progress="first-run">
-                <div>
-                  <p class="progress-label">Mandatory Setup</p>
-                  <h4>Launch `ujust first-run`</h4>
-                </div>
-                <p class="progress-copy">The command runs in a real terminal so the existing prompts and sudo flow still work.</p>
-              </article>
-
-              <article class="progress-card" data-progress="finish">
-                <div>
-                  <p class="progress-label">Finish</p>
-                  <h4>Reboot now</h4>
-                </div>
-                <p class="progress-copy">Reboot when the mandatory setup is done.</p>
-              </article>
-            </div>
-
-            <div class="log-block">
-              <div class="log-header">
-                <div>
-                  <p class="panel-eyebrow">Event Feed</p>
-                  <h4>Wizard activity</h4>
-                </div>
-              </div>
-              <div id="log" class="log-output"></div>
-            </div>
+            <div id="log" class="log-output"></div>
           </section>
         </section>
 
-        <section id="finish-panel" class="finish-panel is-hidden">
-          <div>
-            <p class="eyebrow">Final Step</p>
-            <h3>Reboot now to finish setup</h3>
-            <p id="finish-summary">
-              The mandatory setup completed. Reboot now so your groups, shell changes, and session limits are fully applied.
+        <section id="page-finish" class="page-panel is-hidden">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Step 3</p>
+              <h2>Reboot now to finish setup.</h2>
+              <p id="finish-summary" class="hero-copy">
+                The mandatory setup completed. Reboot now so your groups, shell changes, and session limits are fully applied.
+              </p>
+            </div>
+            <div class="hero-status">
+              <span class="status-badge success">Ready</span>
+            </div>
+          </section>
+
+          <section class="panel">
+            <p class="panel-note">
+              Caracal setup has finished. The reboot applies the new session state and finalizes the first-run changes.
             </p>
-          </div>
-          <div class="finish-actions">
-            <button id="reboot-button" class="primary-button" type="button">Reboot Now</button>
-          </div>
+            <div class="action-row">
+              <button id="reboot-button" class="primary-button" type="button">Reboot Now</button>
+            </div>
+          </section>
         </section>
-      </main>
-    </div>
+      </section>
+    </main>
 
     <script src="/main.js"></script>
   </body>

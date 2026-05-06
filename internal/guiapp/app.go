@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"os/user"
@@ -315,7 +316,8 @@ func isExecutableFile(path string) bool {
 }
 
 func findTerminal() (terminalCandidate, error) {
-	candidates := []terminalCandidate{
+	candidates := preferredTerminalCandidates()
+	candidates = append(candidates, []terminalCandidate{
 		{
 			Command: "alacritty",
 			Args: func(home string, script string) []string {
@@ -335,9 +337,51 @@ func findTerminal() (terminalCandidate, error) {
 			},
 		},
 		{
+			Command: "ptyxis",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "--", "bash", "-lc", script}
+			},
+		},
+		{
+			Command: "kgx",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "bash", "-lc", script}
+			},
+		},
+		{
 			Command: "kitty",
 			Args: func(home string, script string) []string {
 				return []string{"--directory", home, "bash", "-lc", script}
+			},
+		},
+		{
+			Command: "wezterm",
+			Args: func(home string, script string) []string {
+				return []string{"start", "--cwd", home, "--", "bash", "-lc", script}
+			},
+		},
+		{
+			Command: "xfce4-terminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory=" + home, "--command", "bash -lc " + shellQuote(script)}
+			},
+		},
+		{
+			Command: "mate-terminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "--", "bash", "-lc", script}
+			},
+		},
+		{
+			Command: "lxterminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory=" + home, "-e", "bash -lc " + shellQuote(script)}
+			},
+		},
+		{
+			Command: "x-terminal-emulator",
+			Args: func(home string, script string) []string {
+				return []string{"-e", "bash", "-lc", script}
 			},
 		},
 		{
@@ -346,15 +390,201 @@ func findTerminal() (terminalCandidate, error) {
 				return []string{"-T", "Caracal Setup", "-e", "bash", "-lc", script}
 			},
 		},
-	}
+	}...)
 
+	seen := make(map[string]struct{})
 	for _, candidate := range candidates {
+		if _, ok := seen[candidate.Command]; ok {
+			continue
+		}
+		seen[candidate.Command] = struct{}{}
 		if _, err := exec.LookPath(candidate.Command); err == nil {
 			return candidate, nil
 		}
 	}
 
-	return terminalCandidate{}, fmt.Errorf("no supported terminal emulator was found to run ujust first-run")
+	return terminalCandidate{}, fmt.Errorf("no supported terminal emulator was found to run ujust first-run; install a desktop terminal such as Alacritty, Konsole, or GNOME Terminal")
+}
+
+func preferredTerminalCandidates() []terminalCandidate {
+	var candidates []terminalCandidate
+
+	if value := strings.TrimSpace(os.Getenv("TERMINAL")); value != "" {
+		if candidate, ok := commandToTerminalCandidate(value); ok {
+			candidates = append(candidates, candidate)
+		}
+	}
+
+	if value := strings.TrimSpace(readKDETerminalApplication()); value != "" {
+		if candidate, ok := desktopIDToTerminalCandidate(value); ok {
+			candidates = append(candidates, candidate)
+		}
+	}
+
+	return candidates
+}
+
+func readKDETerminalApplication() string {
+	if _, err := exec.LookPath("kreadconfig6"); err != nil {
+		return ""
+	}
+
+	out, err := exec.Command("kreadconfig6", "--file", "kdeglobals", "--group", "General", "--key", "TerminalApplication").Output()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(out))
+}
+
+func desktopIDToTerminalCandidate(id string) (terminalCandidate, bool) {
+	normalized := strings.TrimSpace(id)
+	switch normalized {
+	case "org.alacritty.Alacritty.desktop", "Alacritty.desktop":
+		return commandToTerminalCandidate("alacritty")
+	case "org.kde.konsole.desktop":
+		return commandToTerminalCandidate("konsole")
+	case "org.gnome.Console.desktop":
+		return commandToTerminalCandidate("kgx")
+	case "org.gnome.Terminal.desktop":
+		return commandToTerminalCandidate("gnome-terminal")
+	case "org.wezfurlong.wezterm.desktop":
+		return commandToTerminalCandidate("wezterm")
+	case "kitty.desktop":
+		return commandToTerminalCandidate("kitty")
+	}
+
+	execLine, err := readDesktopExec(normalized)
+	if err != nil {
+		return terminalCandidate{}, false
+	}
+	fields := strings.Fields(execLine)
+	if len(fields) == 0 {
+		return terminalCandidate{}, false
+	}
+	return commandToTerminalCandidate(fields[0])
+}
+
+func readDesktopExec(id string) (string, error) {
+	for _, dir := range desktopApplicationDirs() {
+		path := filepath.Join(dir, id)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(line, "Exec=") {
+				return strings.TrimSpace(strings.TrimPrefix(line, "Exec=")), nil
+			}
+		}
+		return "", fs.ErrNotExist
+	}
+
+	return "", fs.ErrNotExist
+}
+
+func desktopApplicationDirs() []string {
+	dirs := []string{
+		filepath.Join(os.Getenv("HOME"), ".local", "share", "applications"),
+		"/usr/local/share/applications",
+		"/usr/share/applications",
+	}
+	return dirs
+}
+
+func commandToTerminalCandidate(command string) (terminalCandidate, bool) {
+	switch filepath.Base(command) {
+	case "alacritty":
+		return terminalCandidate{
+			Command: "alacritty",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "-T", "Caracal Setup", "-e", "bash", "-lc", script}
+			},
+		}, true
+	case "gnome-terminal":
+		return terminalCandidate{
+			Command: "gnome-terminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "--", "bash", "-lc", script}
+			},
+		}, true
+	case "konsole":
+		return terminalCandidate{
+			Command: "konsole",
+			Args: func(home string, script string) []string {
+				return []string{"--workdir", home, "-e", "bash", "-lc", script}
+			},
+		}, true
+	case "ptyxis":
+		return terminalCandidate{
+			Command: "ptyxis",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "--", "bash", "-lc", script}
+			},
+		}, true
+	case "kgx":
+		return terminalCandidate{
+			Command: "kgx",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "bash", "-lc", script}
+			},
+		}, true
+	case "kitty":
+		return terminalCandidate{
+			Command: "kitty",
+			Args: func(home string, script string) []string {
+				return []string{"--directory", home, "bash", "-lc", script}
+			},
+		}, true
+	case "wezterm":
+		return terminalCandidate{
+			Command: "wezterm",
+			Args: func(home string, script string) []string {
+				return []string{"start", "--cwd", home, "--", "bash", "-lc", script}
+			},
+		}, true
+	case "xfce4-terminal":
+		return terminalCandidate{
+			Command: "xfce4-terminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory=" + home, "--command", "bash -lc " + shellQuote(script)}
+			},
+		}, true
+	case "mate-terminal":
+		return terminalCandidate{
+			Command: "mate-terminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "--", "bash", "-lc", script}
+			},
+		}, true
+	case "lxterminal":
+		return terminalCandidate{
+			Command: "lxterminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory=" + home, "-e", "bash -lc " + shellQuote(script)}
+			},
+		}, true
+	case "x-terminal-emulator":
+		return terminalCandidate{
+			Command: "x-terminal-emulator",
+			Args: func(home string, script string) []string {
+				return []string{"-e", "bash", "-lc", script}
+			},
+		}, true
+	case "xterm":
+		return terminalCandidate{
+			Command: "xterm",
+			Args: func(home string, script string) []string {
+				return []string{"-T", "Caracal Setup", "-e", "bash", "-lc", script}
+			},
+		}, true
+	}
+
+	return terminalCandidate{}, false
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 
 func homeDirForUser(username string) string {
