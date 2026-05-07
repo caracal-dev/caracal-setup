@@ -1,6 +1,6 @@
 # Caracal Setup
 
-![Caracal Setup wizard](assets/screenshots/screenshot-caracal-setup-ui.png)
+![Caracal Setup wizard](assets/images/screenshot-caracal-setup-ui.png)
 
 `caracal-setup` is a Wails desktop wizard for the first graphical launch on Caracal OS.
 
