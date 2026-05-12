@@ -24,9 +24,11 @@ const elements = {
   skipChoice: document.querySelector("#skip-choice"),
   changeChoice: document.querySelector("#change-choice"),
   usernameInput: document.querySelector("#username-input"),
+  hostnameInput: document.querySelector("#hostname-input"),
   passwordInput: document.querySelector("#password-input"),
   confirmPasswordInput: document.querySelector("#confirm-password-input"),
   accountHint: document.querySelector("#account-hint"),
+  saveButton: document.querySelector("#save-button"),
   nextButton: document.querySelector("#next-button"),
   rebootButton: document.querySelector("#reboot-button"),
   finishSummary: document.querySelector("#finish-summary"),
@@ -62,12 +64,58 @@ function bindEvents() {
     elements.usernameInput.focus();
   });
 
-  elements.nextButton.addEventListener("click", async () => {
+  elements.saveButton.addEventListener("click", async () => {
     if (state.running) {
       return;
     }
 
     const request = buildRequest();
+    if (!request) {
+      return;
+    }
+
+    state.running = true;
+    state.completed = false;
+    state.phases.account = {
+      state: "idle",
+      message: "Saving requested account and hostname changes.",
+    };
+    state.phases["first-run"] = {
+      state: "idle",
+      message: "First-run setup was not requested.",
+    };
+    state.phases.finish = {
+      state: "idle",
+      message: "Save is in progress.",
+    };
+    render();
+
+    appendLog("Saving account and hostname details...");
+
+    try {
+      const result = await backend().SaveDetails(request);
+      state.running = false;
+      state.completed = true;
+      state.currentPage = "finish";
+      elements.finishSummary.textContent = result.rebootRequired
+        ? `Saved details for ${result.appliedUsername} on ${result.appliedHostname}. Reboot or sign out to fully apply account and hostname changes.`
+        : "No changes were saved because the current details already match.";
+      await loadProfile();
+      appendLog("Details saved.");
+      render();
+    } catch (error) {
+      state.running = false;
+      appendLog(error?.message || String(error));
+      render();
+    }
+  });
+
+  elements.nextButton.addEventListener("click", async () => {
+    if (state.running) {
+      return;
+    }
+
+    const request = buildRequest({ allowNoChanges: true });
     if (!request) {
       return;
     }
@@ -85,14 +133,15 @@ function bindEvents() {
     };
     render();
 
-    appendLog(request.changeAccount ? "Applying account changes before first-run setup..." : "Skipping account changes.");
+    appendLog(request.changeAccount || request.changeHostname ? "Saving details before first-run setup..." : "Skipping detail changes.");
 
     try {
       const result = await backend().RunSetup(request);
       state.running = false;
       state.completed = true;
       state.currentPage = "finish";
-      elements.finishSummary.textContent = `First-run setup completed for ${result.appliedUsername}. Reboot now to finish applying the Caracal session changes.`;
+      elements.finishSummary.textContent = `First-run setup completed for ${result.appliedUsername} on ${result.appliedHostname}. Reboot now to finish applying the Caracal session changes.`;
+      await loadProfile();
       appendLog("Mandatory setup finished. Reboot is ready.");
       render();
     } catch (error) {
@@ -151,29 +200,24 @@ async function loadProfile() {
   state.profile = profile;
   elements.currentUsername.textContent = profile.currentUsername || "Unknown user";
   elements.usernameInput.value = profile.currentUsername || "";
+  elements.hostnameInput.value = "";
+  elements.hostnameInput.placeholder = profile.currentHostname || "Current hostname";
   elements.currentHome.textContent = profile.currentHome ? `• ${profile.currentHome}` : "";
 }
 
-function buildRequest() {
+function buildRequest(options = {}) {
   const username = (elements.usernameInput.value || "").trim();
+  const hostname = (elements.hostnameInput.value || "").trim();
   const password = elements.passwordInput.value || "";
   const confirmPassword = elements.confirmPasswordInput.value || "";
 
-  if (!state.changeAccount) {
-    return {
-      changeAccount: false,
-      username: state.profile?.currentUsername || "",
-      password: "",
-    };
-  }
+  const usernameChanged = username && username !== (state.profile?.currentUsername || "");
+  const passwordChanged = password !== "";
+  const hostnameChanged = hostname && hostname !== (state.profile?.currentHostname || "");
+  const changeAccount = state.changeAccount && (usernameChanged || passwordChanged);
 
-  if (!username) {
-    appendLog("Enter a username or skip this step.");
-    return null;
-  }
-
-  if (!password) {
-    appendLog("Enter a password or skip this step.");
+  if (state.changeAccount && !username) {
+    appendLog("Enter a username or keep the current account details.");
     return null;
   }
 
@@ -182,10 +226,17 @@ function buildRequest() {
     return null;
   }
 
+  if (!options.allowNoChanges && !changeAccount && !hostnameChanged) {
+    appendLog("Change the username, password, or hostname before saving.");
+    return null;
+  }
+
   return {
-    changeAccount: true,
-    username,
+    changeAccount,
+    changeHostname: hostnameChanged,
+    username: username || state.profile?.currentUsername || "",
     password,
+    hostname: hostname || state.profile?.currentHostname || "",
   };
 }
 
@@ -199,12 +250,15 @@ function render() {
   elements.usernameInput.disabled = disableForm;
   elements.passwordInput.disabled = disableForm;
   elements.confirmPasswordInput.disabled = disableForm;
+  elements.hostnameInput.disabled = state.running;
   elements.accountHint.textContent = state.changeAccount
-    ? "Choose the username and password that should be in place before ujust first-run launches."
-    : "Skipping this step keeps the current account details.";
+    ? "Update any account detail you want to change. Leave the password blank to keep it unchanged."
+    : "Keeping account details still lets you update the hostname.";
 
+  elements.saveButton.disabled = state.running;
   elements.nextButton.disabled = state.running;
-  elements.nextButton.textContent = state.running ? "Running Setup..." : "Next";
+  elements.saveButton.textContent = state.running ? "Saving..." : "Save Details";
+  elements.nextButton.textContent = state.running ? "Running Setup..." : "Save and Run First-Run";
   elements.rebootButton.disabled = state.running;
 
   updatePill(elements.runPill, state.running ? "running" : state.completed ? "success" : "neutral");

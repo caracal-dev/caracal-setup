@@ -8,9 +8,10 @@ fi
 
 current_user="${1:-}"
 target_user="${2:-}"
+target_hostname="${3:-}"
 
 if [[ -z "${current_user}" || -z "${target_user}" ]]; then
-    echo "Usage: apply-account-settings.sh <current-user> <target-user>" >&2
+    echo "Usage: apply-account-settings.sh <current-user> <target-user> [target-hostname]" >&2
     exit 1
 fi
 
@@ -24,12 +25,13 @@ if [[ "${target_user}" != "${current_user}" ]] && getent passwd "${target_user}"
     exit 1
 fi
 
-password=""
-IFS= read -r password || true
-if [[ -z "${password}" ]]; then
-    echo "No password was provided." >&2
+if [[ -n "${target_hostname}" ]] && [[ ! "${target_hostname}" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$ ]]; then
+    echo "Invalid hostname: ${target_hostname}" >&2
     exit 1
 fi
+
+password=""
+IFS= read -r password || true
 
 final_user="${current_user}"
 home_dir="$(getent passwd "${current_user}" | cut -d: -f6)"
@@ -49,7 +51,13 @@ if [[ "${target_user}" != "${current_user}" ]]; then
     final_user="${target_user}"
 fi
 
-printf '%s:%s\n' "${final_user}" "${password}" | chpasswd
+if [[ -n "${password}" ]]; then
+    printf '%s:%s\n' "${final_user}" "${password}" | chpasswd
+fi
+
+if [[ -n "${target_hostname}" ]]; then
+    hostnamectl set-hostname "${target_hostname}"
+fi
 
 if [[ -n "${home_dir}" ]] && [[ -d "${home_dir}" ]]; then
     chown -R "${final_user}:${final_user}" "${home_dir}" || true

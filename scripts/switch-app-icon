@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+icons_dir="${repo_dir}/build/icons"
+target="${repo_dir}/build/appicon.png"
+default_icon="${icons_dir}/appicon.png"
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [icon-name-or-path]
+
+Copies the selected PNG icon to:
+  build/appicon.png
+
+Examples:
+  $(basename "$0")
+  $(basename "$0") caracal-lakers.png
+  $(basename "$0") build/icons/caracal-lakers.png
+EOF
+}
+
+resolve_icon() {
+    local selection="${1:-}"
+
+    if [[ -z "${selection}" ]]; then
+        printf '%s\n' "${default_icon}"
+        return 0
+    fi
+
+    if [[ -f "${selection}" ]]; then
+        realpath "${selection}"
+        return 0
+    fi
+
+    if [[ -f "${repo_dir}/${selection}" ]]; then
+        realpath "${repo_dir}/${selection}"
+        return 0
+    fi
+
+    if [[ -f "${icons_dir}/${selection}" ]]; then
+        realpath "${icons_dir}/${selection}"
+        return 0
+    fi
+
+    return 1
+}
+
+choose_icon() {
+    mapfile -t icons < <(
+        find "${icons_dir}" -maxdepth 1 -type f -name '*.png' -printf '%f\n' \
+            | awk 'BEGIN { print "appicon.png" } $0 != "appicon.png" { print }' \
+            | sort -u
+    )
+
+    if [[ "${#icons[@]}" -eq 0 ]]; then
+        echo "No PNG icons found in ${icons_dir}." >&2
+        exit 1
+    fi
+
+    echo "Select app icon. Press Enter for appicon.png." >&2
+    local index=1
+    local icon=""
+    for icon in "${icons[@]}"; do
+        printf '%2d) %s\n' "${index}" "${icon}" >&2
+        index=$((index + 1))
+    done
+
+    local reply=""
+    printf 'Icon [1]: ' >&2
+    read -r reply
+    if [[ -z "${reply}" ]]; then
+        reply="1"
+    fi
+    if ! [[ "${reply}" =~ ^[0-9]+$ ]] || (( reply < 1 || reply > ${#icons[@]} )); then
+        echo "Invalid selection: ${reply}" >&2
+        exit 1
+    fi
+
+    printf '%s\n' "${icons_dir}/${icons[$((reply - 1))]}"
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+if [[ ! -d "${icons_dir}" ]]; then
+    echo "Icon directory not found: ${icons_dir}" >&2
+    exit 1
+fi
+
+if [[ "$#" -gt 1 ]]; then
+    usage >&2
+    exit 1
+fi
+
+if [[ "$#" -eq 0 ]]; then
+    source_icon="$(choose_icon)"
+else
+    if ! source_icon="$(resolve_icon "$1")"; then
+        echo "Icon not found: $1" >&2
+        exit 1
+    fi
+fi
+
+if [[ "${source_icon}" != *.png ]]; then
+    echo "Selected icon must be a PNG: ${source_icon}" >&2
+    exit 1
+fi
+
+install -Dpm0644 "${source_icon}" "${target}"
+echo "Selected $(realpath --relative-to="${repo_dir}" "${source_icon}") -> build/appicon.png"

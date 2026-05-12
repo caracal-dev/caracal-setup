@@ -16,7 +16,13 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-var usernamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+var (
+	usernamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+	hostnamePattern = regexp.MustCompile(
+		`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?` +
+			`(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`,
+	)
+)
 
 type App struct {
 	ctx context.Context
@@ -28,17 +34,21 @@ type App struct {
 type ProfileView struct {
 	CurrentUsername string `json:"currentUsername"`
 	CurrentHome     string `json:"currentHome"`
+	CurrentHostname string `json:"currentHostname"`
 }
 
 type SetupRequest struct {
-	ChangeAccount bool   `json:"changeAccount"`
-	Username      string `json:"username"`
-	Password      string `json:"password"`
+	ChangeAccount  bool   `json:"changeAccount"`
+	ChangeHostname bool   `json:"changeHostname"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	Hostname       string `json:"hostname"`
 }
 
 type SetupResult struct {
 	AppliedUsername string `json:"appliedUsername"`
 	AppliedHome     string `json:"appliedHome"`
+	AppliedHostname string `json:"appliedHostname"`
 	RebootRequired  bool   `json:"rebootRequired"`
 }
 
@@ -67,6 +77,7 @@ func (a *App) GetProfile() ProfileView {
 	return ProfileView{
 		CurrentUsername: current,
 		CurrentHome:     homeDirForUser(current),
+		CurrentHostname: currentHostname(),
 	}
 }
 
@@ -90,28 +101,17 @@ func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
 		return SetupResult{}, fmt.Errorf("could not determine the current desktop user")
 	}
 
-	targetUser := currentUser
-	if request.ChangeAccount {
-		targetUser = strings.TrimSpace(request.Username)
-		if err := validateSetupRequest(currentUser, request); err != nil {
-			a.emitPhase("account", "Account Details", "error", err.Error())
-			return SetupResult{}, err
-		}
-
-		a.emitPhase("account", "Account Details", "running", "Applying your username and password changes...")
-		if err := runAccountUpdate(currentUser, targetUser, request.Password); err != nil {
-			a.emitPhase("account", "Account Details", "error", err.Error())
-			return SetupResult{}, err
-		}
-		a.emitPhase("account", "Account Details", "complete", "Account details updated.")
-	} else {
-		a.emitPhase("account", "Account Details", "complete", "Keeping the current username and password.")
+	result, changed, err := a.applyDetails(currentUser, request, true)
+	if err != nil {
+		return SetupResult{}, err
 	}
 
+	targetUser := result.AppliedUsername
 	targetHome := homeDirForUser(targetUser)
 	if targetHome == "" {
 		targetHome = filepath.Join("/home", targetUser)
 	}
+	result.AppliedHome = targetHome
 
 	a.emitPhase("first-run", "Mandatory Setup", "running", "Opening a terminal to run ujust first-run...")
 	if err := runFirstRunInTerminal(targetUser, targetHome); err != nil {
@@ -121,11 +121,43 @@ func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
 	a.emitPhase("first-run", "Mandatory Setup", "complete", "ujust first-run finished successfully.")
 	a.emitPhase("finish", "Reboot", "ready", "Setup is complete. Reboot now to finish applying group and session changes.")
 
-	return SetupResult{
-		AppliedUsername: targetUser,
-		AppliedHome:     targetHome,
-		RebootRequired:  true,
-	}, nil
+	result.RebootRequired = true
+	if !changed {
+		result.AppliedHostname = currentHostname()
+	}
+	return result, nil
+}
+
+func (a *App) SaveDetails(request SetupRequest) (SetupResult, error) {
+	a.mu.Lock()
+	if a.running {
+		a.mu.Unlock()
+		return SetupResult{}, fmt.Errorf("setup is already running")
+	}
+	a.running = true
+	a.mu.Unlock()
+
+	defer func() {
+		a.mu.Lock()
+		a.running = false
+		a.mu.Unlock()
+	}()
+
+	currentUser := currentDesktopUser()
+	if currentUser == "" {
+		return SetupResult{}, fmt.Errorf("could not determine the current desktop user")
+	}
+
+	result, changed, err := a.applyDetails(currentUser, request, false)
+	if err != nil {
+		return SetupResult{}, err
+	}
+	if changed {
+		a.emitPhase("finish", "Saved", "ready", "Details saved. Reboot or sign out to apply the new session state.")
+	} else {
+		a.emitPhase("finish", "Saved", "ready", "No account or hostname changes were requested.")
+	}
+	return result, nil
 }
 
 func (a *App) RebootNow() error {
@@ -149,39 +181,85 @@ func (a *App) emitPhase(id string, title string, state string, message string) {
 	})
 }
 
-func validateSetupRequest(currentUser string, request SetupRequest) error {
+func (a *App) applyDetails(currentUser string, request SetupRequest, allowNoChanges bool) (SetupResult, bool, error) {
+	targetUser, targetHostname, changed, err := validateSetupRequest(currentUser, request, allowNoChanges)
+	if err != nil {
+		a.emitPhase("account", "Details", "error", err.Error())
+		return SetupResult{}, false, err
+	}
+
+	result := SetupResult{
+		AppliedUsername: targetUser,
+		AppliedHome:     homeDirForUser(targetUser),
+		AppliedHostname: targetHostname,
+		RebootRequired:  changed,
+	}
+
+	if changed {
+		a.emitPhase("account", "Details", "running", "Saving your account and hostname changes...")
+		scriptHostname := ""
+		if request.ChangeHostname {
+			scriptHostname = targetHostname
+		}
+		if err := runAccountUpdate(currentUser, targetUser, scriptHostname, request.Password); err != nil {
+			a.emitPhase("account", "Details", "error", err.Error())
+			return SetupResult{}, false, err
+		}
+		a.emitPhase("account", "Details", "complete", "Details saved.")
+	} else {
+		a.emitPhase("account", "Details", "complete", "Keeping the current account and hostname.")
+	}
+
+	return result, changed, nil
+}
+
+func validateSetupRequest(currentUser string, request SetupRequest, allowNoChanges bool) (string, string, bool, error) {
 	username := strings.TrimSpace(request.Username)
+	if username == "" {
+		username = currentUser
+	}
+
+	currentHost := currentHostname()
+	hostname := strings.TrimSpace(request.Hostname)
+	if hostname == "" {
+		hostname = currentHost
+	}
+
 	switch {
-	case username == "":
-		return fmt.Errorf("enter a username or skip this step")
 	case !usernamePattern.MatchString(username):
-		return fmt.Errorf("use a lowercase username starting with a letter or underscore")
-	case request.Password == "":
-		return fmt.Errorf("enter a password or skip this step")
+		return "", "", false, fmt.Errorf("use a lowercase username starting with a letter or underscore")
 	case strings.ContainsRune(request.Password, '\n'):
-		return fmt.Errorf("password cannot contain newlines")
+		return "", "", false, fmt.Errorf("password cannot contain newlines")
+	case request.ChangeHostname && !hostnamePattern.MatchString(hostname):
+		return "", "", false, fmt.Errorf("use a valid hostname")
 	}
 
 	if username == currentUser {
-		return nil
+		request.ChangeAccount = request.ChangeAccount && request.Password != ""
+	} else if _, err := user.Lookup(username); err == nil {
+		return "", "", false, fmt.Errorf("the username %q already exists", username)
 	}
 
-	if _, err := user.Lookup(username); err == nil {
-		return fmt.Errorf("the username %q already exists", username)
+	passwordChanged := request.Password != ""
+	usernameChanged := username != currentUser
+	hostnameChanged := request.ChangeHostname && hostname != currentHost
+	changed := usernameChanged || passwordChanged || hostnameChanged
+	if !changed && !allowNoChanges {
+		return "", "", false, fmt.Errorf("change the username, password, or hostname before saving")
 	}
 
-	return nil
+	return username, hostname, changed, nil
 }
 
-func runAccountUpdate(currentUser string, targetUser string, password string) error {
+func runAccountUpdate(currentUser string, targetUser string, targetHostname string, password string) error {
 	script, err := resolveScriptPath("apply-account-settings.sh")
 	if err != nil {
 		return err
 	}
 
 	stdin := bytes.NewBufferString(password + "\n")
-	if err := runPrivilegedCommand(stdin, script, currentUser, targetUser); err != nil {
-		return fmt.Errorf("could not update account details: %w", err)
+	if err := runPrivilegedCommand(stdin, script, currentUser, targetUser, targetHostname); err != nil {
+		return fmt.Errorf("could not save details: %w", err)
 	}
 	return nil
 }
@@ -595,14 +673,14 @@ func homeDirForUser(username string) string {
 		return ""
 	}
 
+	if lookedUp, err := user.Lookup(username); err == nil && strings.TrimSpace(lookedUp.HomeDir) != "" {
+		return lookedUp.HomeDir
+	}
+
 	if current := currentDesktopUser(); username == current {
 		if value, err := os.UserHomeDir(); err == nil {
 			return value
 		}
-	}
-
-	if lookedUp, err := user.Lookup(username); err == nil && strings.TrimSpace(lookedUp.HomeDir) != "" {
-		return lookedUp.HomeDir
 	}
 
 	return filepath.Join("/home", username)
@@ -612,14 +690,29 @@ func currentDesktopUser() string {
 	if value := strings.TrimSpace(os.Getenv("CARACAL_SETUP_TARGET_USER")); value != "" {
 		return value
 	}
-	if value := strings.TrimSpace(os.Getenv("SUDO_USER")); value != "" {
-		return value
+	for _, envKey := range []string{"SUDO_USER", "USER"} {
+		value := strings.TrimSpace(os.Getenv(envKey))
+		if value != "" && userExists(value) {
+			return value
+		}
+	}
+	if current, err := user.Current(); err == nil {
+		return strings.TrimSpace(current.Username)
 	}
 	if value := strings.TrimSpace(os.Getenv("USER")); value != "" {
 		return value
 	}
-	if current, err := user.Current(); err == nil {
-		return strings.TrimSpace(current.Username)
+	return ""
+}
+
+func userExists(username string) bool {
+	_, err := user.Lookup(username)
+	return err == nil
+}
+
+func currentHostname() string {
+	if value, err := os.Hostname(); err == nil {
+		return strings.TrimSpace(value)
 	}
 	return ""
 }

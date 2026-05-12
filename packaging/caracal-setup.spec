@@ -49,7 +49,7 @@ cp -a scripts %{buildroot}%{_prefix}/lib/caracal-setup/
 cp -a assets %{buildroot}%{_datadir}/caracal-setup/
 
 install -pm0644 logo.txt %{buildroot}%{_datadir}/caracal-setup/logo.txt
-install -pm0644 assets/images/caracal.png %{buildroot}%{_datadir}/pixmaps/caracal-setup.png
+install -pm0644 build/appicon.png %{buildroot}%{_datadir}/pixmaps/caracal-setup.png
 install -Dpm0644 packaging/caracal-setup.desktop %{buildroot}%{_datadir}/applications/caracal-setup.desktop
 
 %files

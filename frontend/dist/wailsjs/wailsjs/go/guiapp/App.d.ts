@@ -6,4 +6,6 @@ export function GetProfile():Promise<guiapp.ProfileView>;
 
 export function RebootNow():Promise<void>;
 
+export function SaveDetails(arg1:guiapp.SetupRequest):Promise<guiapp.SetupResult>;
+
 export function RunSetup(arg1:guiapp.SetupRequest):Promise<guiapp.SetupResult>;

@@ -27,9 +27,9 @@
           <section class="hero-panel">
             <div>
               <p class="eyebrow">Step 1</p>
-              <h2>Choose your account details.</h2>
+              <h2>Update system details.</h2>
               <p class="hero-copy">
-                Keep the current account or set a new username and password before the mandatory setup runs.
+                Save a new username, password, or hostname whenever you need to update this install.
               </p>
             </div>
             <img class="hero-mark" src="/assets/images/caracal-splash.svg" alt="" />
@@ -47,11 +47,15 @@
                 Keep current account
               </button>
               <button id="change-choice" class="choice-pill" type="button" aria-pressed="false">
-                Set a new username and password
+                Change username or password
               </button>
             </div>
 
             <form id="account-form" class="account-form" novalidate>
+              <label class="field">
+                <span>Hostname</span>
+                <input id="hostname-input" name="hostname" type="text" autocomplete="off" />
+              </label>
               <label class="field">
                 <span>Username</span>
                 <input id="username-input" name="username" type="text" autocomplete="username" />
@@ -69,7 +73,8 @@
             <p id="account-hint" class="panel-note">Skipping this step keeps the current account details.</p>
 
             <div class="action-row">
-              <button id="next-button" class="primary-button" type="button">Next</button>
+              <button id="save-button" class="secondary-button" type="button">Save Details</button>
+              <button id="next-button" class="primary-button" type="button">Save and Run First-Run</button>
             </div>
           </section>
         </section>
@@ -80,7 +85,7 @@
               <p class="eyebrow">Step 2</p>
               <h2>Mandatory first-run setup.</h2>
               <p class="hero-copy">
-                The wizard is now running <code>ujust first-run</code>. A terminal window opens for the existing Caracal setup flow.
+                The wizard can still run <code>ujust first-run</code> for the existing Caracal setup flow when needed.
               </p>
             </div>
             <div class="hero-status">
@@ -91,8 +96,8 @@
           <section class="panel">
             <div class="progress-list">
               <div class="progress-item" data-progress="account">
-                <strong>Account</strong>
-                <p class="progress-copy">Optional account changes.</p>
+                <strong>Details</strong>
+                <p class="progress-copy">Optional username, password, and hostname changes.</p>
               </div>
               <div class="progress-item" data-progress="first-run">
                 <strong>Mandatory first-run</strong>
@@ -122,7 +127,7 @@
               <p class="eyebrow">Step 3</p>
               <h2>Reboot now to finish setup.</h2>
               <p id="finish-summary" class="hero-copy">
-                The mandatory setup completed. Reboot now so your groups, shell changes, and session limits are fully applied.
+                Saved changes may require a reboot or new login session before everything reflects the new details.
               </p>
             </div>
             <div class="hero-status">
@@ -132,7 +137,7 @@
 
           <section class="panel">
             <p class="panel-note">
-              Caracal setup has finished. The reboot applies the new session state and finalizes the first-run changes.
+              Rebooting applies the new session state and finalizes account, hostname, or first-run changes.
             </p>
             <div class="action-row">
               <button id="reboot-button" class="primary-button" type="button">Reboot Now</button>
