@@ -9,3 +9,5 @@ export function RebootNow():Promise<void>;
 export function SaveDetails(arg1:guiapp.SetupRequest):Promise<guiapp.SetupResult>;
 
 export function RunSetup(arg1:guiapp.SetupRequest):Promise<guiapp.SetupResult>;
+
+export function RunUpgrade():Promise<guiapp.SetupResult>;

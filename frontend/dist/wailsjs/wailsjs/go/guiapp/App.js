@@ -17,3 +17,7 @@ export function SaveDetails(arg1) {
 export function RunSetup(arg1) {
   return window['go']['guiapp']['App']['RunSetup'](arg1);
 }
+
+export function RunUpgrade() {
+  return window['go']['guiapp']['App']['RunUpgrade']();
+}

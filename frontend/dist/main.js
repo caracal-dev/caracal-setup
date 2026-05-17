@@ -7,6 +7,7 @@ const state = {
   phases: {
     account: { state: "idle", message: "This step is skipped unless you choose to change the account." },
     "first-run": { state: "idle", message: "The mandatory setup has not started yet." },
+    upgrade: { state: "idle", message: "Caracal update has not started yet." },
     finish: { state: "idle", message: "Reboot becomes available after setup finishes." },
   },
 };
@@ -29,6 +30,7 @@ const elements = {
   confirmPasswordInput: document.querySelector("#confirm-password-input"),
   accountHint: document.querySelector("#account-hint"),
   saveButton: document.querySelector("#save-button"),
+  upgradeButton: document.querySelector("#upgrade-button"),
   nextButton: document.querySelector("#next-button"),
   rebootButton: document.querySelector("#reboot-button"),
   finishSummary: document.querySelector("#finish-summary"),
@@ -154,6 +156,50 @@ function bindEvents() {
     }
   });
 
+  elements.upgradeButton.addEventListener("click", async () => {
+    if (state.running) {
+      return;
+    }
+
+    state.currentPage = "first-run";
+    state.running = true;
+    state.completed = false;
+    state.phases.account = {
+      state: "idle",
+      message: "Account and hostname details are unchanged.",
+    };
+    state.phases["first-run"] = {
+      state: "idle",
+      message: "First-run setup was not requested.",
+    };
+    state.phases.upgrade = {
+      state: "idle",
+      message: "The terminal window will open for the Caracal update.",
+    };
+    state.phases.finish = {
+      state: "idle",
+      message: "Reboot will be available after the update finishes.",
+    };
+    render();
+
+    appendLog("Starting Caracal update...");
+
+    try {
+      const result = await backend().RunUpgrade();
+      state.running = false;
+      state.completed = true;
+      state.currentPage = "finish";
+      elements.finishSummary.textContent = `Caracal update completed for ${result.appliedUsername} on ${result.appliedHostname}. Reboot if the updater requested it.`;
+      await loadProfile();
+      appendLog("Caracal update finished.");
+      render();
+    } catch (error) {
+      state.running = false;
+      appendLog(error?.message || String(error));
+      render();
+    }
+  });
+
   elements.rebootButton.addEventListener("click", async () => {
     if (state.running) {
       return;
@@ -186,6 +232,9 @@ function bindRuntimeEvents() {
 
     if (payload.id === "first-run" && payload.state === "running") {
       appendLog("Launching a terminal window for ujust first-run.");
+      appendLog("Complete the prompts there, then return here when it closes.");
+    } else if (payload.id === "upgrade" && payload.state === "running") {
+      appendLog("Launching a terminal window for ujust upgrade.");
       appendLog("Complete the prompts there, then return here when it closes.");
     } else {
       appendLog(payload.message);
@@ -256,8 +305,10 @@ function render() {
     : "Keeping account details still lets you update the hostname.";
 
   elements.saveButton.disabled = state.running;
+  elements.upgradeButton.disabled = state.running;
   elements.nextButton.disabled = state.running;
   elements.saveButton.textContent = state.running ? "Saving..." : "Save Details";
+  elements.upgradeButton.textContent = state.running ? "Updating..." : "Update Caracal";
   elements.nextButton.textContent = state.running ? "Running Setup..." : "Save and Run First-Run";
   elements.rebootButton.disabled = state.running;
 

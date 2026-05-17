@@ -114,7 +114,14 @@ func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
 	result.AppliedHome = targetHome
 
 	a.emitPhase("first-run", "Mandatory Setup", "running", "Opening a terminal to run ujust first-run...")
-	if err := runFirstRunInTerminal(targetUser, targetHome); err != nil {
+	if err := runUjustInTerminal(targetUser, targetHome, ujustTerminalRun{
+		Command:        "first-run",
+		Heading:        "Caracal Setup",
+		Intro:          "The mandatory first-run setup is starting now.",
+		SuccessMessage: "First-run setup finished successfully.",
+		FailureMessage: "First-run setup failed",
+		ReturnPrompt:   "Press any key to return to Caracal Setup...",
+	}); err != nil {
 		a.emitPhase("first-run", "Mandatory Setup", "error", err.Error())
 		return SetupResult{}, err
 	}
@@ -126,6 +133,54 @@ func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
 		result.AppliedHostname = currentHostname()
 	}
 	return result, nil
+}
+
+func (a *App) RunUpgrade() (SetupResult, error) {
+	a.mu.Lock()
+	if a.running {
+		a.mu.Unlock()
+		return SetupResult{}, fmt.Errorf("setup is already running")
+	}
+	a.running = true
+	a.mu.Unlock()
+
+	defer func() {
+		a.mu.Lock()
+		a.running = false
+		a.mu.Unlock()
+	}()
+
+	currentUser := currentDesktopUser()
+	if currentUser == "" {
+		return SetupResult{}, fmt.Errorf("could not determine the current desktop user")
+	}
+
+	targetHome := homeDirForUser(currentUser)
+	if targetHome == "" {
+		targetHome = filepath.Join("/home", currentUser)
+	}
+
+	a.emitPhase("upgrade", "Update Caracal", "running", "Opening a terminal to run ujust upgrade...")
+	if err := runUjustInTerminal(currentUser, targetHome, ujustTerminalRun{
+		Command:        "upgrade",
+		Heading:        "Caracal Update",
+		Intro:          "The Caracal update is starting now.",
+		SuccessMessage: "Caracal update finished successfully.",
+		FailureMessage: "Caracal update failed",
+		ReturnPrompt:   "Press any key to return to Caracal Setup...",
+	}); err != nil {
+		a.emitPhase("upgrade", "Update Caracal", "error", err.Error())
+		return SetupResult{}, err
+	}
+	a.emitPhase("upgrade", "Update Caracal", "complete", "ujust upgrade finished successfully.")
+	a.emitPhase("finish", "Reboot", "ready", "Update is complete. Reboot if the updater requested it.")
+
+	return SetupResult{
+		AppliedUsername: currentUser,
+		AppliedHome:     targetHome,
+		AppliedHostname: currentHostname(),
+		RebootRequired:  false,
+	}, nil
 }
 
 func (a *App) SaveDetails(request SetupRequest) (SetupResult, error) {
@@ -264,27 +319,37 @@ func runAccountUpdate(currentUser string, targetUser string, targetHostname stri
 	return nil
 }
 
-func runFirstRunInTerminal(targetUser string, targetHome string) error {
+type ujustTerminalRun struct {
+	Command        string
+	Heading        string
+	Intro          string
+	SuccessMessage string
+	FailureMessage string
+	ReturnPrompt   string
+}
+
+func runUjustInTerminal(targetUser string, targetHome string, run ujustTerminalRun) error {
 	terminal, err := findTerminal()
 	if err != nil {
 		return err
 	}
 
+	headingLine := strings.Repeat("=", len(run.Heading))
 	script := strings.Join([]string{
-		`printf '\nCaracal Setup\n==============\n\n'`,
-		`echo 'The mandatory first-run setup is starting now.'`,
+		"printf '\\n%s\\n%s\\n\\n' " + shellQuote(run.Heading) + " " + shellQuote(headingLine),
+		"echo " + shellQuote(run.Intro),
 		`echo 'Finish any prompts in this terminal window.'`,
 		`echo`,
-		`ujust first-run`,
+		"ujust " + shellQuote(run.Command),
 		`status=$?`,
 		`echo`,
 		`if [[ $status -eq 0 ]]; then`,
-		`  echo 'First-run setup finished successfully.'`,
+		"  echo " + shellQuote(run.SuccessMessage),
 		`else`,
-		`  echo "First-run setup failed with exit code $status."`,
+		`  echo ` + shellQuote(run.FailureMessage) + ` "with exit code $status."`,
 		`fi`,
 		`echo`,
-		`read -r -n 1 -s -p 'Press any key to return to Caracal Setup...'`,
+		"read -r -n 1 -s -p " + shellQuote(run.ReturnPrompt),
 		`echo`,
 		`exit $status`,
 	}, "\n")
@@ -295,7 +360,7 @@ func runFirstRunInTerminal(targetUser string, targetHome string) error {
 	cmd.Dir = targetHome
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ujust first-run did not complete successfully: %w", err)
+		return fmt.Errorf("ujust %s did not complete successfully: %w", run.Command, err)
 	}
 
 	return nil
@@ -394,24 +459,26 @@ func isExecutableFile(path string) bool {
 }
 
 func findTerminal() (terminalCandidate, error) {
-	candidates := preferredTerminalCandidates()
-	candidates = append(candidates, []terminalCandidate{
+	candidates := []terminalCandidate{
 		{
-			Command: "alacritty",
+			Command: "ghostty",
 			Args: func(home string, script string) []string {
-				return []string{"--working-directory", home, "-T", "Caracal Setup", "-e", "bash", "-lc", script}
-			},
-		},
-		{
-			Command: "gnome-terminal",
-			Args: func(home string, script string) []string {
-				return []string{"--working-directory", home, "--", "bash", "-lc", script}
+				return []string{"--working-directory", home, "-e", "bash", "-lc", script}
 			},
 		},
 		{
 			Command: "konsole",
 			Args: func(home string, script string) []string {
 				return []string{"--workdir", home, "-e", "bash", "-lc", script}
+			},
+		},
+	}
+	candidates = append(candidates, preferredTerminalCandidates()...)
+	candidates = append(candidates, []terminalCandidate{
+		{
+			Command: "gnome-terminal",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "--", "bash", "-lc", script}
 			},
 		},
 		{
@@ -481,7 +548,7 @@ func findTerminal() (terminalCandidate, error) {
 		}
 	}
 
-	return terminalCandidate{}, fmt.Errorf("no supported terminal emulator was found to run ujust first-run; install a desktop terminal such as Alacritty, Konsole, or GNOME Terminal")
+	return terminalCandidate{}, fmt.Errorf("no supported terminal emulator was found to run ujust commands; install a desktop terminal such as Ghostty, Konsole, or GNOME Terminal")
 }
 
 func preferredTerminalCandidates() []terminalCandidate {
@@ -519,7 +586,9 @@ func desktopIDToTerminalCandidate(id string) (terminalCandidate, bool) {
 	normalized := strings.TrimSpace(id)
 	switch normalized {
 	case "org.alacritty.Alacritty.desktop", "Alacritty.desktop":
-		return commandToTerminalCandidate("alacritty")
+		return commandToTerminalCandidate("ghostty")
+	case "com.mitchellh.ghostty.desktop":
+		return commandToTerminalCandidate("ghostty")
 	case "org.kde.konsole.desktop":
 		return commandToTerminalCandidate("konsole")
 	case "org.gnome.Console.desktop":
@@ -572,11 +641,11 @@ func desktopApplicationDirs() []string {
 
 func commandToTerminalCandidate(command string) (terminalCandidate, bool) {
 	switch filepath.Base(command) {
-	case "alacritty":
+	case "ghostty":
 		return terminalCandidate{
-			Command: "alacritty",
+			Command: "ghostty",
 			Args: func(home string, script string) []string {
-				return []string{"--working-directory", home, "-T", "Caracal Setup", "-e", "bash", "-lc", script}
+				return []string{"--working-directory", home, "-e", "bash", "-lc", script}
 			},
 		}, true
 	case "gnome-terminal":
