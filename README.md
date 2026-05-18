@@ -1,3 +1,5 @@
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/edd1881e87164d0ba3962a9e6269ae2b)](https://app.codacy.com/gh/caracal-dev/caracal-setup/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+
 # Caracal Setup
 
 ![Caracal Setup wizard](assets/images/screenshot-caracal-setup-ui.png)
