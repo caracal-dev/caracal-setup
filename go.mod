@@ -1,6 +1,6 @@
 module github.com/caracal-os/caracal-setup
 
-go 1.25
+go 1.25.7
 
 require github.com/wailsapp/wails/v2 v2.12.0
 
