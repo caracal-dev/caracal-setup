@@ -26,15 +26,25 @@ jobs:
         run: |
           set -euo pipefail
           dnf -y install \
+            curl \
             gcc \
             git \
             glib2-devel \
-            golang \
             gtk3-devel \
             pkgconf-pkg-config \
             tar \
             webkit2gtk4.1-devel
           dnf clean all
+
+      - name: Install Go 1.26.3
+        run: |
+          set -euo pipefail
+          curl -fsSL https://go.dev/dl/go1.26.3.linux-amd64.tar.gz -o /tmp/go.tar.gz
+          rm -rf /usr/local/go
+          tar -C /usr/local -xzf /tmp/go.tar.gz
+          rm -f /tmp/go.tar.gz
+          echo "/usr/local/go/bin" >> "${GITHUB_PATH}"
+          /usr/local/go/bin/go version
 
       - name: Resolve release metadata
         id: meta
