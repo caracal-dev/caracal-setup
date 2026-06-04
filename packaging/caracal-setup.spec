@@ -1,6 +1,6 @@
 %global debug_package %{nil}
 %undefine _disable_source_fetch
-%global upstream_version %{?version_override}%{!?version_override:0.5.1}
+%global upstream_version %{?version_override}%{!?version_override:0.5.2}
 %global github_owner %{?github_owner_override}%{!?github_owner_override:caracal-os}
 %global github_repo %{?github_repo_override}%{!?github_repo_override:caracal-setup}
 %global source_tag %{?source_tag_override}%{!?source_tag_override:v%{upstream_version}}
@@ -15,7 +15,7 @@ URL:            https://github.com/%{github_owner}/%{github_repo}
 Source0:        %{url}/archive/refs/tags/%{source_tag}.tar.gz#/%{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
-BuildRequires:  golang >= 1.25
+BuildRequires:  golang >= 1.26.3
 BuildRequires:  glib2-devel
 BuildRequires:  gtk3-devel
 BuildRequires:  pkgconf-pkg-config
