@@ -1,27 +1,18 @@
 package guiapp
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-)
-
-var (
-	usernamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
-	hostnamePattern = regexp.MustCompile(
-		`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?` +
-			`(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`,
-	)
 )
 
 type App struct {
@@ -38,11 +29,6 @@ type ProfileView struct {
 }
 
 type SetupRequest struct {
-	ChangeAccount  bool   `json:"changeAccount"`
-	ChangeHostname bool   `json:"changeHostname"`
-	Username       string `json:"username"`
-	Password       string `json:"password"`
-	Hostname       string `json:"hostname"`
 }
 
 type SetupResult struct {
@@ -101,20 +87,13 @@ func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
 		return SetupResult{}, fmt.Errorf("could not determine the current desktop user")
 	}
 
-	result, changed, err := a.applyDetails(currentUser, request, true)
-	if err != nil {
-		return SetupResult{}, err
-	}
-
-	targetUser := result.AppliedUsername
-	targetHome := homeDirForUser(targetUser)
+	targetHome := homeDirForUser(currentUser)
 	if targetHome == "" {
-		targetHome = filepath.Join("/home", targetUser)
+		targetHome = filepath.Join("/home", currentUser)
 	}
-	result.AppliedHome = targetHome
 
 	a.emitPhase("first-run", "Mandatory Setup", "running", "Opening a terminal to run ujust first-run...")
-	if err := runUjustInTerminal(targetUser, targetHome, ujustTerminalRun{
+	if err := runUjustInTerminal(currentUser, targetHome, ujustTerminalRun{
 		Command:        "first-run",
 		Heading:        "Caracal Setup",
 		Intro:          "The mandatory first-run setup is starting now.",
@@ -128,11 +107,12 @@ func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
 	a.emitPhase("first-run", "Mandatory Setup", "complete", "ujust first-run finished successfully.")
 	a.emitPhase("finish", "Reboot", "ready", "Setup is complete. Reboot now to finish applying group and session changes.")
 
-	result.RebootRequired = true
-	if !changed {
-		result.AppliedHostname = currentHostname()
-	}
-	return result, nil
+	return SetupResult{
+		AppliedUsername: currentUser,
+		AppliedHome:     targetHome,
+		AppliedHostname: currentHostname(),
+		RebootRequired:  true,
+	}, nil
 }
 
 func (a *App) RunUpgrade() (SetupResult, error) {
@@ -183,38 +163,6 @@ func (a *App) RunUpgrade() (SetupResult, error) {
 	}, nil
 }
 
-func (a *App) SaveDetails(request SetupRequest) (SetupResult, error) {
-	a.mu.Lock()
-	if a.running {
-		a.mu.Unlock()
-		return SetupResult{}, fmt.Errorf("setup is already running")
-	}
-	a.running = true
-	a.mu.Unlock()
-
-	defer func() {
-		a.mu.Lock()
-		a.running = false
-		a.mu.Unlock()
-	}()
-
-	currentUser := currentDesktopUser()
-	if currentUser == "" {
-		return SetupResult{}, fmt.Errorf("could not determine the current desktop user")
-	}
-
-	result, changed, err := a.applyDetails(currentUser, request, false)
-	if err != nil {
-		return SetupResult{}, err
-	}
-	if changed {
-		a.emitPhase("finish", "Saved", "ready", "Details saved. Reboot or sign out to apply the new session state.")
-	} else {
-		a.emitPhase("finish", "Saved", "ready", "No account or hostname changes were requested.")
-	}
-	return result, nil
-}
-
 func (a *App) RebootNow() error {
 	a.emitPhase("finish", "Reboot", "running", "Requesting a system reboot...")
 	if err := runPrivilegedCommand(nil, "systemctl", "reboot"); err != nil {
@@ -234,89 +182,6 @@ func (a *App) emitPhase(id string, title string, state string, message string) {
 		State:   state,
 		Message: message,
 	})
-}
-
-func (a *App) applyDetails(currentUser string, request SetupRequest, allowNoChanges bool) (SetupResult, bool, error) {
-	targetUser, targetHostname, changed, err := validateSetupRequest(currentUser, request, allowNoChanges)
-	if err != nil {
-		a.emitPhase("account", "Details", "error", err.Error())
-		return SetupResult{}, false, err
-	}
-
-	result := SetupResult{
-		AppliedUsername: targetUser,
-		AppliedHome:     homeDirForUser(targetUser),
-		AppliedHostname: targetHostname,
-		RebootRequired:  changed,
-	}
-
-	if changed {
-		a.emitPhase("account", "Details", "running", "Saving your account and hostname changes...")
-		scriptHostname := ""
-		if request.ChangeHostname {
-			scriptHostname = targetHostname
-		}
-		if err := runAccountUpdate(currentUser, targetUser, scriptHostname, request.Password); err != nil {
-			a.emitPhase("account", "Details", "error", err.Error())
-			return SetupResult{}, false, err
-		}
-		a.emitPhase("account", "Details", "complete", "Details saved.")
-	} else {
-		a.emitPhase("account", "Details", "complete", "Keeping the current account and hostname.")
-	}
-
-	return result, changed, nil
-}
-
-func validateSetupRequest(currentUser string, request SetupRequest, allowNoChanges bool) (string, string, bool, error) {
-	username := strings.TrimSpace(request.Username)
-	if username == "" {
-		username = currentUser
-	}
-
-	currentHost := currentHostname()
-	hostname := strings.TrimSpace(request.Hostname)
-	if hostname == "" {
-		hostname = currentHost
-	}
-
-	switch {
-	case !usernamePattern.MatchString(username):
-		return "", "", false, fmt.Errorf("use a lowercase username starting with a letter or underscore")
-	case strings.ContainsRune(request.Password, '\n'):
-		return "", "", false, fmt.Errorf("password cannot contain newlines")
-	case request.ChangeHostname && !hostnamePattern.MatchString(hostname):
-		return "", "", false, fmt.Errorf("use a valid hostname")
-	}
-
-	if username == currentUser {
-		request.ChangeAccount = request.ChangeAccount && request.Password != ""
-	} else if _, err := user.Lookup(username); err == nil {
-		return "", "", false, fmt.Errorf("the username %q already exists", username)
-	}
-
-	passwordChanged := request.Password != ""
-	usernameChanged := username != currentUser
-	hostnameChanged := request.ChangeHostname && hostname != currentHost
-	changed := usernameChanged || passwordChanged || hostnameChanged
-	if !changed && !allowNoChanges {
-		return "", "", false, fmt.Errorf("change the username, password, or hostname before saving")
-	}
-
-	return username, hostname, changed, nil
-}
-
-func runAccountUpdate(currentUser string, targetUser string, targetHostname string, password string) error {
-	script, err := resolveScriptPath("apply-account-settings.sh")
-	if err != nil {
-		return err
-	}
-
-	stdin := bytes.NewBufferString(password + "\n")
-	if err := runPrivilegedCommand(stdin, script, currentUser, targetUser, targetHostname); err != nil {
-		return fmt.Errorf("could not save details: %w", err)
-	}
-	return nil
 }
 
 type ujustTerminalRun struct {
@@ -389,7 +254,7 @@ func withUserEnvironment(base []string, username string, home string) []string {
 	return filtered
 }
 
-func runPrivilegedCommand(stdin *bytes.Buffer, args ...string) error {
+func runPrivilegedCommand(stdin io.Reader, args ...string) error {
 	pkexecPath, err := exec.LookPath("pkexec")
 	if err != nil {
 		return fmt.Errorf("pkexec is not installed")

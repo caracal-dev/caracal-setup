@@ -10,10 +10,6 @@ export function RebootNow() {
   return window['go']['guiapp']['App']['RebootNow']();
 }
 
-export function SaveDetails(arg1) {
-  return window['go']['guiapp']['App']['SaveDetails'](arg1);
-}
-
 export function RunSetup(arg1) {
   return window['go']['guiapp']['App']['RunSetup'](arg1);
 }

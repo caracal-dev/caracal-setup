@@ -8,8 +8,8 @@
 
 It mirrors the look and static frontend structure of `caracal-software-installer`, but focuses on the mandatory first-run flow:
 
-- save a new hostname, username, or password
 - launch `ujust first-run` in a terminal window
+- launch `ujust upgrade` for Caracal updates
 - finish with a reboot action
 
 ## Development
