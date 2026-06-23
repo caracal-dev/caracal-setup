@@ -28,8 +28,7 @@ type ProfileView struct {
 	CurrentHostname string `json:"currentHostname"`
 }
 
-type SetupRequest struct {
-}
+type SetupRequest struct{}
 
 type SetupResult struct {
 	AppliedUsername string `json:"appliedUsername"`
@@ -244,11 +243,11 @@ func withUserEnvironment(base []string, username string, home string) []string {
 		filtered = append(filtered, item)
 	}
 
-	filtered = append(filtered,
+	filtered = append(
+		filtered,
 		"HOME="+home,
 		"USER="+username,
 		"LOGNAME="+username,
-		"SUDO_USER="+username,
 		"PWD="+home,
 	)
 	return filtered
