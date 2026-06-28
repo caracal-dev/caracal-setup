@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -64,6 +66,10 @@ func (a *App) GetProfile() ProfileView {
 		CurrentHome:     homeDirForUser(current),
 		CurrentHostname: currentHostname(),
 	}
+}
+
+func (a *App) HasNetworkConnection() bool {
+	return hasNetworkConnection()
 }
 
 func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
@@ -204,6 +210,9 @@ func runUjustInTerminal(targetUser string, targetHome string, run ujustTerminalR
 		"echo " + shellQuote(run.Intro),
 		`echo 'Finish any prompts in this terminal window.'`,
 		`echo`,
+		`if ! command -v brew >/dev/null 2>&1 && [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then`,
+		`  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"`,
+		`fi`,
 		"ujust " + shellQuote(run.Command),
 		`status=$?`,
 		`echo`,
@@ -219,9 +228,17 @@ func runUjustInTerminal(targetUser string, targetHome string, run ujustTerminalR
 	}, "\n")
 
 	args := append([]string(nil), terminal.Args(targetHome, script)...)
-	cmd := exec.Command(terminal.Command, args...)
+	cmd, err := terminalCommand(terminal.Command, args)
+	if err != nil {
+		return err
+	}
 	cmd.Env = withUserEnvironment(os.Environ(), targetUser, targetHome)
 	cmd.Dir = targetHome
+	if os.Geteuid() == 0 && targetUser != "" && targetUser != "root" {
+		if err := runCommandAsUser(cmd, targetUser, targetHome); err != nil {
+			return err
+		}
+	}
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ujust %s did not complete successfully: %w", run.Command, err)
@@ -243,6 +260,7 @@ func withUserEnvironment(base []string, username string, home string) []string {
 		filtered = append(filtered, item)
 	}
 
+	filtered = setEnvValue(filtered, "PATH", homebrewPath(envValue(filtered, "PATH")))
 	filtered = append(
 		filtered,
 		"HOME="+home,
@@ -253,18 +271,141 @@ func withUserEnvironment(base []string, username string, home string) []string {
 	return filtered
 }
 
+func runCommandAsUser(cmd *exec.Cmd, username string, home string) error {
+	envArgs := append(environmentAssignments(cmd.Env, username, home), cmd.Args...)
+
+	if runuserPath, err := exec.LookPath("runuser"); err == nil {
+		cmd.Path = runuserPath
+		cmd.Args = append([]string{"runuser", "--preserve-environment", "-u", username, "--", "env"}, envArgs...)
+		return nil
+	}
+
+	if sudoPath, err := exec.LookPath("sudo"); err == nil {
+		cmd.Path = sudoPath
+		cmd.Args = append([]string{"sudo", "-u", username, "--", "env"}, envArgs...)
+		return nil
+	}
+
+	return fmt.Errorf("caracal-setup is running as root and cannot locate runuser or sudo to launch ujust as %s", username)
+}
+
+func terminalCommand(command string, args []string) (*exec.Cmd, error) {
+	switch command {
+	case "ghostty":
+		return exec.Command("ghostty", args...), nil
+	case "konsole":
+		return exec.Command("konsole", args...), nil
+	case "gnome-terminal":
+		return exec.Command("gnome-terminal", args...), nil
+	case "ptyxis":
+		return exec.Command("ptyxis", args...), nil
+	case "kgx":
+		return exec.Command("kgx", args...), nil
+	case "kitty":
+		return exec.Command("kitty", args...), nil
+	case "wezterm":
+		return exec.Command("wezterm", args...), nil
+	case "xfce4-terminal":
+		return exec.Command("xfce4-terminal", args...), nil
+	case "mate-terminal":
+		return exec.Command("mate-terminal", args...), nil
+	case "lxterminal":
+		return exec.Command("lxterminal", args...), nil
+	case "x-terminal-emulator":
+		return exec.Command("x-terminal-emulator", args...), nil
+	case "xterm":
+		return exec.Command("xterm", args...), nil
+	default:
+		return nil, fmt.Errorf("unsupported terminal command: %s", command)
+	}
+}
+
+func environmentAssignments(env []string, username string, home string) []string {
+	assignments := make([]string, 0, len(env)+4)
+	for _, item := range env {
+		if strings.Contains(item, "=") {
+			assignments = append(assignments, item)
+		}
+	}
+	return append(assignments,
+		"HOME="+home,
+		"USER="+username,
+		"LOGNAME="+username,
+		"PWD="+home,
+	)
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for _, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			return strings.TrimPrefix(item, prefix)
+		}
+	}
+	return ""
+}
+
+func setEnvValue(env []string, key string, value string) []string {
+	prefix := key + "="
+	for index, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			env[index] = prefix + value
+			return env
+		}
+	}
+	return append(env, prefix+value)
+}
+
+func homebrewPath(pathValue string) string {
+	const brewBin = "/home/linuxbrew/.linuxbrew/bin"
+	if pathValue == "" {
+		return brewBin + ":/usr/local/bin:/usr/bin:/bin"
+	}
+	parts := strings.Split(pathValue, ":")
+	for _, part := range parts {
+		if part == brewBin {
+			return pathValue
+		}
+	}
+	return brewBin + ":" + pathValue
+}
+
+func hasNetworkConnection() bool {
+	client := http.Client{
+		Timeout: 3 * time.Second,
+	}
+	for _, endpoint := range []string{
+		"https://www.google.com/generate_204",
+		"https://connectivitycheck.gstatic.com/generate_204",
+		"https://github.com",
+		"https://raw.githubusercontent.com",
+		"https://1.1.1.1",
+	} {
+		request, err := http.NewRequest(http.MethodHead, endpoint, nil)
+		if err != nil {
+			continue
+		}
+		response, err := client.Do(request)
+		if err == nil {
+			_ = response.Body.Close()
+			if response.StatusCode >= 200 && response.StatusCode < 500 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func runPrivilegedCommand(stdin io.Reader, args ...string) error {
-	pkexecPath, err := exec.LookPath("pkexec")
-	if err != nil {
+	if _, err := exec.LookPath("pkexec"); err != nil {
 		return fmt.Errorf("pkexec is not installed")
 	}
-	envPath, err := exec.LookPath("env")
-	if err != nil {
+	if _, err := exec.LookPath("env"); err != nil {
 		return fmt.Errorf("could not locate env for pkexec wrapper: %w", err)
 	}
 
-	cmdArgs := append([]string{envPath}, args...)
-	cmd := exec.Command(pkexecPath, cmdArgs...)
+	cmdArgs := append([]string{"env"}, args...)
+	cmd := exec.Command("pkexec", cmdArgs...)
 	if stdin != nil {
 		cmd.Stdin = stdin
 	}
@@ -465,42 +606,7 @@ func desktopIDToTerminalCandidate(id string) (terminalCandidate, bool) {
 		return commandToTerminalCandidate("kitty")
 	}
 
-	execLine, err := readDesktopExec(normalized)
-	if err != nil {
-		return terminalCandidate{}, false
-	}
-	fields := strings.Fields(execLine)
-	if len(fields) == 0 {
-		return terminalCandidate{}, false
-	}
-	return commandToTerminalCandidate(fields[0])
-}
-
-func readDesktopExec(id string) (string, error) {
-	for _, dir := range desktopApplicationDirs() {
-		path := filepath.Join(dir, id)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		for _, line := range strings.Split(string(data), "\n") {
-			if strings.HasPrefix(line, "Exec=") {
-				return strings.TrimSpace(strings.TrimPrefix(line, "Exec=")), nil
-			}
-		}
-		return "", fs.ErrNotExist
-	}
-
-	return "", fs.ErrNotExist
-}
-
-func desktopApplicationDirs() []string {
-	dirs := []string{
-		filepath.Join(os.Getenv("HOME"), ".local", "share", "applications"),
-		"/usr/local/share/applications",
-		"/usr/share/applications",
-	}
-	return dirs
+	return terminalCandidate{}, false
 }
 
 func commandToTerminalCandidate(command string) (terminalCandidate, bool) {
@@ -621,26 +727,56 @@ func homeDirForUser(username string) string {
 
 func currentDesktopUser() string {
 	if value := strings.TrimSpace(os.Getenv("CARACAL_SETUP_TARGET_USER")); value != "" {
+		if isRegularUser(value) {
+			return value
+		}
+	}
+	for _, envKey := range []string{"SUDO_USER", "LOGNAME", "USER"} {
+		value := strings.TrimSpace(os.Getenv(envKey))
+		if value != "" && isRegularUser(value) {
+			return value
+		}
+	}
+	if value := userFromPKExecUID(); value != "" {
 		return value
 	}
-	for _, envKey := range []string{"SUDO_USER", "USER"} {
-		value := strings.TrimSpace(os.Getenv(envKey))
-		if value != "" && userExists(value) {
+	if out, err := exec.Command("logname").Output(); err == nil {
+		value := strings.TrimSpace(string(out))
+		if isRegularUser(value) {
 			return value
 		}
 	}
 	if current, err := user.Current(); err == nil {
-		return strings.TrimSpace(current.Username)
-	}
-	if value := strings.TrimSpace(os.Getenv("USER")); value != "" {
-		return value
+		value := strings.TrimSpace(current.Username)
+		if isRegularUser(value) {
+			return value
+		}
 	}
 	return ""
 }
 
-func userExists(username string) bool {
-	_, err := user.Lookup(username)
-	return err == nil
+func isRegularUser(username string) bool {
+	lookedUp, err := user.Lookup(username)
+	if err != nil {
+		return false
+	}
+	uid, err := strconv.Atoi(lookedUp.Uid)
+	return err == nil && uid >= 1000 && username != "root"
+}
+
+func userFromPKExecUID() string {
+	value := strings.TrimSpace(os.Getenv("PKEXEC_UID"))
+	if value == "" {
+		return ""
+	}
+	lookedUp, err := user.LookupId(value)
+	if err != nil {
+		return ""
+	}
+	if isRegularUser(lookedUp.Username) {
+		return lookedUp.Username
+	}
+	return ""
 }
 
 func currentHostname() string {

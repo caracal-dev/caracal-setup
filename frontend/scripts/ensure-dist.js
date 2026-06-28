@@ -1,20 +1,23 @@
 const fs = require("node:fs");
-const path = require("node:path");
 
-const distDir = path.resolve(__dirname, "..", "dist");
-const required = ["index.html", "main.css", "main.js"];
-
-if (!fs.existsSync(distDir)) {
-  console.error(`Missing frontend dist directory: ${distDir}`);
+if (!fs.existsSync("dist")) {
+  console.error("Missing frontend dist directory: dist");
   process.exit(1);
 }
 
-for (const file of required) {
-  const fullPath = path.join(distDir, file);
-  if (!fs.existsSync(fullPath)) {
-    console.error(`Missing required frontend asset: ${fullPath}`);
-    process.exit(1);
-  }
+if (!fs.existsSync("dist/index.html")) {
+  console.error("Missing required frontend asset: dist/index.html");
+  process.exit(1);
+}
+
+if (!fs.existsSync("dist/main.css")) {
+  console.error("Missing required frontend asset: dist/main.css");
+  process.exit(1);
+}
+
+if (!fs.existsSync("dist/main.js")) {
+  console.error("Missing required frontend asset: dist/main.js");
+  process.exit(1);
 }
 
 console.log("Frontend dist is ready.");

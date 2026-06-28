@@ -3,6 +3,8 @@ const state = {
   currentPage: "first-run",
   running: false,
   completed: false,
+  networkReady: false,
+  checkingNetwork: true,
   phases: {
     "first-run": { state: "idle", message: "The mandatory setup has not started yet." },
     upgrade: { state: "idle", message: "Caracal update has not started yet." },
@@ -19,6 +21,7 @@ const elements = {
   },
   upgradeButton: document.querySelector("#upgrade-button"),
   runButton: document.querySelector("#run-button"),
+  networkBanner: document.querySelector("#network-banner"),
   rebootButton: document.querySelector("#reboot-button"),
   finishSummary: document.querySelector("#finish-summary"),
   log: document.querySelector("#log"),
@@ -37,13 +40,15 @@ async function boot() {
   bindEvents();
   bindRuntimeEvents();
   await loadProfile();
+  await refreshNetwork();
+  window.setInterval(refreshNetwork, 10000);
   render();
   appendLog("Wizard ready.");
 }
 
 function bindEvents() {
   elements.runButton.addEventListener("click", async () => {
-    if (state.running) {
+    if (state.running || !state.networkReady) {
       return;
     }
 
@@ -78,7 +83,7 @@ function bindEvents() {
   });
 
   elements.upgradeButton.addEventListener("click", async () => {
-    if (state.running) {
+    if (state.running || !state.networkReady) {
       return;
     }
 
@@ -165,9 +170,25 @@ async function loadProfile() {
   state.profile = profile;
 }
 
+async function refreshNetwork() {
+  state.checkingNetwork = true;
+  render();
+
+  try {
+    state.networkReady = await backend().HasNetworkConnection();
+  } catch (error) {
+    state.networkReady = false;
+  } finally {
+    state.checkingNetwork = false;
+    render();
+  }
+}
+
 function render() {
-  elements.upgradeButton.disabled = state.running;
-  elements.runButton.disabled = state.running;
+  const actionsDisabled = state.running || !state.networkReady;
+  elements.upgradeButton.disabled = actionsDisabled;
+  elements.runButton.disabled = actionsDisabled;
+  elements.networkBanner.classList.toggle("is-hidden", state.networkReady || state.checkingNetwork);
   elements.upgradeButton.textContent = state.running ? "Updating..." : "Update Caracal";
   elements.runButton.textContent = state.running ? "Running Setup..." : "Run First-Run";
   elements.rebootButton.disabled = state.running;

@@ -6,6 +6,10 @@ export function GetProfile() {
   return window['go']['guiapp']['App']['GetProfile']();
 }
 
+export function HasNetworkConnection() {
+  return window['go']['guiapp']['App']['HasNetworkConnection']();
+}
+
 export function RebootNow() {
   return window['go']['guiapp']['App']['RebootNow']();
 }

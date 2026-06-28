@@ -4,6 +4,8 @@ import {guiapp} from '../models';
 
 export function GetProfile():Promise<guiapp.ProfileView>;
 
+export function HasNetworkConnection():Promise<boolean>;
+
 export function RebootNow():Promise<void>;
 
 export function RunSetup(arg1:guiapp.SetupRequest):Promise<guiapp.SetupResult>;
