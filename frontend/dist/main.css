@@ -390,3 +390,72 @@ code {
     width: 100%;
   }
 }
+
+
+.welcome-panel {
+  padding: 22px 28px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, rgba(31, 31, 40, 0.94), rgba(24, 24, 37, 0.86)),
+    url("/assets/images/caracal-banner-light.png") center/cover;
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.welcome-heading {
+  margin: 0 0 8px;
+  font-family: "IBM Plex Serif", "Georgia", serif;
+  font-weight: 600;
+  font-size: 1.35rem;
+  color: var(--accent-warm);
+}
+
+.welcome-copy {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 0.95rem;
+  max-width: 70ch;
+}
+
+.socials-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(17, 17, 27, 0.4);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: 140ms ease;
+}
+
+.social-link:hover {
+  border-color: rgba(126, 156, 216, 0.34);
+  background: rgba(126, 156, 216, 0.12);
+}
+
+.social-link img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.website-link {
+  color: var(--accent-warm);
+  font-weight: 500;
+}
+
+.website-link:hover {
+  border-color: rgba(246, 193, 119, 0.34);
+  background: rgba(246, 193, 119, 0.1);
+}
