@@ -45,6 +45,7 @@
         <section class="step-strip" aria-label="Setup progress">
           <div class="step-chip is-active" data-step="first-run">1. First Run</div>
           <div class="step-chip" data-step="finish">2. Reboot</div>
+          <div class="step-chip" data-step="switcher">Switch Version</div>
         </section>
 
         <section id="page-first-run" class="page-panel">
@@ -98,6 +99,54 @@
           </section>
         </section>
 
+
+        <section id="page-switcher" class="page-panel is-hidden">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Version Switcher</p>
+              <h2>Switch Caracal version.</h2>
+              <p class="hero-copy">
+                Select the Caracal OS image to use on the next boot.
+              </p>
+            </div>
+            <div class="hero-status">
+              <span id="switcher-pill" class="status-badge neutral">Idle</span>
+            </div>
+          </section>
+
+          <section id="same-image-banner" class="panel-banner is-hidden" role="status" aria-live="polite">
+            You are already on this image.
+          </section>
+
+          <section id="image-options" class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Images</p>
+                <h3>Available Caracal images</h3>
+              </div>
+            </div>
+            <div id="image-grid" class="image-grid"></div>
+          </section>
+
+          <section class="panel">
+            <div id="rebase-details" class="rebase-detail is-hidden">
+              <p class="rebase-command">rpm-ostree rebase ostree-unverified-registry:ghcr.io/caracal-dev/<span id="rebase-target-name"></span>:latest</p>
+            </div>
+            <div class="action-row">
+              <button id="switch-button" class="primary-button" type="button" disabled>Switch Version</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Log</p>
+                <h3>Activity</h3>
+              </div>
+            </div>
+            <div id="switcher-log" class="log-output"></div>
+          </section>
+        </section>
         <section id="page-finish" class="page-panel is-hidden">
           <section class="hero-panel">
             <div>

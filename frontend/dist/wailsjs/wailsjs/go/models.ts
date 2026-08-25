@@ -1,5 +1,11 @@
 export namespace guiapp {
 	
+	export interface ImageOption {
+	    label: string;
+	    imageName: string;
+	    description: string;
+	    recommended: boolean;
+	}
 	export interface ProfileView {
 	    currentUsername: string;
 	    currentHome: string;

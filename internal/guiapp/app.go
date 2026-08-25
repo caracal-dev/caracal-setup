@@ -3,6 +3,7 @@ package guiapp
 import (
 	"context"
 	"fmt"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -166,6 +167,215 @@ func (a *App) RunUpgrade() (SetupResult, error) {
 		AppliedHostname: currentHostname(),
 		RebootRequired:  false,
 	}, nil
+}
+
+// ImageOption describes a Caracal OS image available for switching.
+type ImageOption struct {
+	Label       string `json:"label"`
+	ImageName   string `json:"imageName"`
+	Description string `json:"description"`
+	Recommended bool   `json:"recommended"`
+}
+
+// HasLaunchCompleted reports whether the mandatory first-run has already been
+// run by checking if ~/.local/share/caracal/setup-launch-version contains "launched".
+func (a *App) HasLaunchCompleted() bool {
+	user := currentDesktopUser()
+	if user == "" {
+		return false
+	}
+	home := homeDirForUser(user)
+	if home == "" {
+		return false
+	}
+	path := filepath.Join(home, ".local/share/caracal/setup-launch-version")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), "launched")
+}
+
+// GetCurrentImageName returns the image name of the currently booted ostree
+// deployment (e.g. "caracal", "caracal-dx", "caracal-stage").
+func (a *App) GetCurrentImageName() string {
+	out, err := exec.Command("rpm-ostree", "status", "--json").Output()
+	if err != nil {
+		return ""
+	}
+	var status struct {
+		Deployments []struct {
+			Booted bool   `json:"booted"`
+			Origin string `json:"origin"`
+		} `json:"deployments"`
+	}
+	if err := json.Unmarshal(out, &status); err != nil {
+		return ""
+	}
+	marker := "caracal-dev/"
+	for _, dep := range status.Deployments {
+		if dep.Booted {
+			if idx := strings.Index(dep.Origin, marker); idx >= 0 {
+				after := dep.Origin[idx+len(marker):]
+				if tagIdx := strings.LastIndex(after, ":"); tagIdx >= 0 {
+					return after[:tagIdx]
+				}
+				return after
+			}
+		}
+	}
+	return ""
+}
+
+// DetectNvidia checks whether the system has NVIDIA hardware by probing lspci
+// and loaded kernel modules.
+func (a *App) DetectNvidia() bool {
+	out, err := exec.Command("lspci", "-nn").Output()
+	if err == nil && strings.Contains(strings.ToLower(string(out)), "nvidia") {
+		return true
+	}
+	data, err := os.ReadFile("/proc/modules")
+	if err == nil && strings.Contains(string(data), "nvidia") {
+		return true
+	}
+	return false
+}
+
+// GetAvailableImages returns the list of Caracal OS images available for
+// switching. The Recommended flag is set based on NVIDIA hardware detection.
+func (a *App) GetAvailableImages() []ImageOption {
+	hasNvidia := a.DetectNvidia()
+	return []ImageOption{
+		{
+			Label:       "Caracal",
+			ImageName:   "caracal",
+			Description: "Standard Caracal OS image",
+			Recommended: !hasNvidia,
+		},
+		{
+			Label:       "Caracal (NVIDIA)",
+			ImageName:   "caracal-nvidia",
+			Description: "Caracal with NVIDIA driver support",
+			Recommended: hasNvidia,
+		},
+		{
+			Label:       "Caracal Stage",
+			ImageName:   "caracal-stage",
+			Description: "Image for portable devices. Uses Wayfire desktop environment",
+		},
+		{
+			Label:       "Caracal Developer Experience",
+			ImageName:   "caracal-dx",
+			Description: "Caracal with development tooling pre-installed",
+			Recommended: !hasNvidia,
+		},
+		{
+			Label:       "Caracal Developer Experience (NVIDIA)",
+			ImageName:   "caracal-dx-nvidia",
+			Description: "Caracal DX with NVIDIA driver support",
+			Recommended: hasNvidia,
+		},
+	}
+}
+
+// RebaseImage performs an ostree rebase to the specified image, opening a
+// terminal window to show progress. Uses run0 for passwordless privilege
+// escalation via polkit.
+func (a *App) RebaseImage(targetImage string) error {
+	a.mu.Lock()
+	if a.running {
+		a.mu.Unlock()
+		return fmt.Errorf("a rebase is already running")
+	}
+	a.running = true
+	a.mu.Unlock()
+
+	defer func() {
+		a.mu.Lock()
+		a.running = false
+		a.mu.Unlock()
+	}()
+
+	currentUser := currentDesktopUser()
+	if currentUser == "" {
+		return fmt.Errorf("could not determine the current desktop user")
+	}
+
+	targetHome := homeDirForUser(currentUser)
+	if targetHome == "" {
+		targetHome = filepath.Join("/home", currentUser)
+	}
+
+	imageLabel := imageDisplayName(targetImage)
+	heading := fmt.Sprintf("Switching to %s", imageLabel)
+	headingLine := strings.Repeat("=", len(heading))
+
+	a.emitPhase("rebase", "Switch Version", "running", "Opening a terminal to run the version switch...")
+
+	script := strings.Join([]string{
+		"printf '\\n%s\\n%s\\n\\n' " + shellQuote(heading) + " " + shellQuote(headingLine),
+		"echo " + shellQuote("rpm-ostree rebase to ostree-unverified-registry:ghcr.io/caracal-dev/" + targetImage + ":latest"),
+		`echo`,
+		`echo 'Authorize the polkit prompt to proceed.'`,
+		`echo`,
+		`run0 rpm-ostree rebase ostree-unverified-registry:ghcr.io/caracal-dev/` + shellQuote(targetImage) + `:latest`,
+		`status=$?`,
+		`echo`,
+		`if [[ $status -eq 0 ]]; then`,
+		`  echo "Rebase completed successfully."`,
+		`  echo "The new image will be used on the next boot."`,
+		`else`,
+		`  echo "Rebase failed with exit code $status."`,
+		`fi`,
+		`echo`,
+		`read -r -n 1 -s -p "Press any key to return to Caracal Setup..."`,
+		`exit $status`,
+	}, "\n")
+
+	terminal, err := findTerminal()
+	if err != nil {
+		return err
+	}
+
+	args := append([]string(nil), terminal.Args(targetHome, script)...)
+	cmd, err := terminalCommand(terminal.Command, args)
+	if err != nil {
+		return err
+	}
+	cmd.Env = withUserEnvironment(os.Environ(), currentUser, targetHome)
+	cmd.Dir = targetHome
+	if os.Geteuid() == 0 && currentUser != "" && currentUser != "root" {
+		if err := runCommandAsUser(cmd, currentUser, targetHome); err != nil {
+			return err
+		}
+	}
+
+	if err := cmd.Run(); err != nil {
+		a.emitPhase("rebase", "Switch Version", "error", fmt.Sprintf("Rebase to %s failed.", imageLabel))
+		return fmt.Errorf("rebase to %s did not complete successfully: %w", imageLabel, err)
+	}
+
+	a.emitPhase("rebase", "Switch Version", "complete", fmt.Sprintf("Rebase to %s completed. Reboot to apply.", imageLabel))
+	a.emitPhase("finish", "Reboot", "ready", "Rebase completed. Reboot to apply the new image.")
+
+	return nil
+}
+
+func imageDisplayName(imageName string) string {
+	switch imageName {
+	case "caracal":
+		return "Caracal"
+	case "caracal-nvidia":
+		return "Caracal (NVIDIA)"
+	case "caracal-stage":
+		return "Caracal Stage"
+	case "caracal-dx":
+		return "Caracal Developer Experience"
+	case "caracal-dx-nvidia":
+		return "Caracal Developer Experience (NVIDIA)"
+	default:
+		return imageName
+	}
 }
 
 func (a *App) RebootNow() error {

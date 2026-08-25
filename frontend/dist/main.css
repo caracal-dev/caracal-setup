@@ -459,3 +459,116 @@ code {
   border-color: rgba(246, 193, 119, 0.34);
   background: rgba(246, 193, 119, 0.1);
 }
+
+/* ---- Version Switcher ---- */
+
+.panel-banner {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(166, 218, 149, 0.36);
+  background: rgba(166, 218, 149, 0.12);
+  color: var(--success);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.image-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.image-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(17, 17, 27, 0.34);
+  cursor: pointer;
+  transition: 140ms ease;
+  align-items: start;
+}
+
+.image-card:hover {
+  border-color: rgba(126, 156, 216, 0.34);
+  background: rgba(126, 156, 216, 0.08);
+}
+
+.image-card.is-selected {
+  border-color: rgba(126, 156, 216, 0.5);
+  background: rgba(126, 156, 216, 0.14);
+  box-shadow: 0 0 0 1px rgba(126, 156, 216, 0.28);
+}
+
+.image-card.is-current {
+  border-color: rgba(166, 218, 149, 0.28);
+  background: rgba(166, 218, 149, 0.06);
+}
+
+.image-card.is-current.is-selected {
+  border-color: rgba(166, 218, 149, 0.5);
+  box-shadow: 0 0 0 1px rgba(166, 218, 149, 0.3);
+}
+
+.image-card.is-current .image-current-badge {
+  display: inline-block;
+}
+
+.image-card strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 1rem;
+}
+
+.image-card .image-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.image-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.image-badge {
+  display: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.image-badge.current-badge {
+  display: inline-block;
+  border: 1px solid rgba(166, 218, 149, 0.32);
+  background: rgba(166, 218, 149, 0.12);
+  color: var(--success);
+}
+
+.image-badge.recommended-badge {
+  display: inline-block;
+  border: 1px solid rgba(246, 193, 119, 0.32);
+  background: rgba(246, 193, 119, 0.12);
+  color: var(--accent-warm);
+}
+
+.rebase-detail {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(17, 17, 27, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rebase-command {
+  margin: 0;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.82rem;
+  color: var(--muted);
+  word-break: break-all;
+}
