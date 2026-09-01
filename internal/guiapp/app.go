@@ -275,6 +275,18 @@ func (a *App) GetAvailableImages() []ImageOption {
 			Description: "Caracal DX with NVIDIA driver support",
 			Recommended: hasNvidia,
 		},
+		{
+			Label:       "Caracal Gaming",
+			ImageName:   "caracal-gaming",
+			Description: "Heavy all-in-one Caracal based on Bazzite. For music production and gaming",
+			Recommended: !hasNvidia,
+		},
+		{
+			Label:       "Caracal Gaming (NVIDIA)",
+			ImageName:   "caracal-gaming-nvidia",
+			Description: "Bazzite-based Caracal with NVIDIA driver support. For music production and gaming",
+			Recommended: hasNvidia,
+		},
 	}
 }
 
@@ -373,6 +385,10 @@ func imageDisplayName(imageName string) string {
 		return "Caracal Developer Experience"
 	case "caracal-dx-nvidia":
 		return "Caracal Developer Experience (NVIDIA)"
+	case "caracal-gaming":
+		return "Caracal Gaming"
+	case "caracal-gaming-nvidia":
+		return "Caracal Gaming (NVIDIA)"
 	default:
 		return imageName
 	}
