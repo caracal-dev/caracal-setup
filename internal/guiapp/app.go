@@ -2,8 +2,8 @@ package guiapp
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -326,7 +326,7 @@ func (a *App) RebaseImage(targetImage string) error {
 
 	script := strings.Join([]string{
 		"printf '\\n%s\\n%s\\n\\n' " + shellQuote(heading) + " " + shellQuote(headingLine),
-		"echo " + shellQuote("rpm-ostree rebase to ostree-unverified-registry:ghcr.io/caracal-dev/" + targetImage + ":latest"),
+		"echo " + shellQuote("rpm-ostree rebase to ostree-unverified-registry:ghcr.io/caracal-dev/"+targetImage+":latest"),
 		`echo`,
 		`echo 'Authorize the polkit prompt to proceed.'`,
 		`echo`,
@@ -517,10 +517,10 @@ func runCommandAsUser(cmd *exec.Cmd, username string, home string) error {
 
 func terminalCommand(command string, args []string) (*exec.Cmd, error) {
 	switch command {
-	case "ghostty":
-		return exec.Command("ghostty", args...), nil
 	case "konsole":
 		return exec.Command("konsole", args...), nil
+	case "ghostty":
+		return exec.Command("ghostty", args...), nil
 	case "gnome-terminal":
 		return exec.Command("gnome-terminal", args...), nil
 	case "ptyxis":
@@ -553,7 +553,8 @@ func environmentAssignments(env []string, username string, home string) []string
 			assignments = append(assignments, item)
 		}
 	}
-	return append(assignments,
+	return append(
+		assignments,
 		"HOME="+home,
 		"USER="+username,
 		"LOGNAME="+username,
@@ -692,15 +693,15 @@ func isExecutableFile(path string) bool {
 func findTerminal() (terminalCandidate, error) {
 	candidates := []terminalCandidate{
 		{
-			Command: "ghostty",
-			Args: func(home string, script string) []string {
-				return []string{"--working-directory", home, "-e", "bash", "-lc", script}
-			},
-		},
-		{
 			Command: "konsole",
 			Args: func(home string, script string) []string {
 				return []string{"--workdir", home, "-e", "bash", "-lc", script}
+			},
+		},
+		{
+			Command: "ghostty",
+			Args: func(home string, script string) []string {
+				return []string{"--working-directory", home, "-e", "bash", "-lc", script}
 			},
 		},
 	}
@@ -818,10 +819,10 @@ func desktopIDToTerminalCandidate(id string) (terminalCandidate, bool) {
 	switch normalized {
 	case "org.alacritty.Alacritty.desktop", "Alacritty.desktop":
 		return commandToTerminalCandidate("ghostty")
-	case "com.mitchellh.ghostty.desktop":
-		return commandToTerminalCandidate("ghostty")
 	case "org.kde.konsole.desktop":
 		return commandToTerminalCandidate("konsole")
+	case "com.mitchellh.ghostty.desktop":
+		return commandToTerminalCandidate("ghostty")
 	case "org.gnome.Console.desktop":
 		return commandToTerminalCandidate("kgx")
 	case "org.gnome.Terminal.desktop":
@@ -837,6 +838,13 @@ func desktopIDToTerminalCandidate(id string) (terminalCandidate, bool) {
 
 func commandToTerminalCandidate(command string) (terminalCandidate, bool) {
 	switch filepath.Base(command) {
+	case "konsole":
+		return terminalCandidate{
+			Command: "konsole",
+			Args: func(home string, script string) []string {
+				return []string{"--workdir", home, "-e", "bash", "-lc", script}
+			},
+		}, true
 	case "ghostty":
 		return terminalCandidate{
 			Command: "ghostty",
@@ -849,13 +857,6 @@ func commandToTerminalCandidate(command string) (terminalCandidate, bool) {
 			Command: "gnome-terminal",
 			Args: func(home string, script string) []string {
 				return []string{"--working-directory", home, "--", "bash", "-lc", script}
-			},
-		}, true
-	case "konsole":
-		return terminalCandidate{
-			Command: "konsole",
-			Args: func(home string, script string) []string {
-				return []string{"--workdir", home, "-e", "bash", "-lc", script}
 			},
 		}, true
 	case "ptyxis":
