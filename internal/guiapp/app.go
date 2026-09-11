@@ -113,6 +113,10 @@ func (a *App) RunSetup(request SetupRequest) (SetupResult, error) {
 	a.emitPhase("first-run", "Mandatory Setup", "complete", "ujust first-run finished successfully.")
 	a.emitPhase("finish", "Reboot", "ready", "Setup is complete. Reboot now to finish applying group and session changes.")
 
+	// Write completion marker so HasLaunchCompleted returns true on next launch.
+	markerPath := filepath.Join(targetHome, ".local/share/caracal/setup-launch-version")
+	_ = os.WriteFile(markerPath, []byte("completed\n"), 0644)
+
 	return SetupResult{
 		AppliedUsername: currentUser,
 		AppliedHome:     targetHome,
@@ -178,7 +182,9 @@ type ImageOption struct {
 }
 
 // HasLaunchCompleted reports whether the mandatory first-run has already been
-// run by checking if ~/.local/share/caracal/setup-launch-version contains "launched".
+// completed by checking if ~/.local/share/caracal/setup-launch-version contains "completed".
+// The launcher script writes "launched" to prevent re-launching on subsequent logins;
+// RunSetup promotes it to "completed" after a successful first-run.
 func (a *App) HasLaunchCompleted() bool {
 	user := currentDesktopUser()
 	if user == "" {
@@ -193,7 +199,7 @@ func (a *App) HasLaunchCompleted() bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(data), "launched")
+	return strings.Contains(string(data), "completed")
 }
 
 // GetCurrentImageName returns the image name of the currently booted ostree
