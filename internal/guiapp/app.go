@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -194,8 +195,7 @@ func (a *App) HasLaunchCompleted() bool {
 	if home == "" {
 		return false
 	}
-	path := filepath.Join(home, ".local/share/caracal/setup-launch-version")
-	data, err := os.ReadFile(path)
+	data, err := fs.ReadFile(os.DirFS(home), ".local/share/caracal/setup-launch-version")
 	if err != nil {
 		return false
 	}
